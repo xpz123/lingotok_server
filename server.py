@@ -3,6 +3,45 @@ from flask import Flask, request
 import os
 from mdd import rtevl
 import random as rd
+import pandas as pd
+import json
+from collections import defaultdict
+
+video_quizd = dict()
+lines = open("video_metainfo.jsonl").readlines()
+for l in lines:
+    data = json.loads(l.strip())
+    vid = data["vid"]
+    video_quizd[vid] = {"question": data["question"], "options": data["options"], "answer": data["answer"].strip().replace(".", "")}
+
+video_infod = dict()
+key2vid = defaultdict(list)
+df = pd.read_csv("video_info.csv")
+for i in range(df.shape[0]):
+    item = df.iloc[i].to_dict()
+    vid = str(item["vid"])
+    video_infod[vid] = item
+    ages = item["age"].strip().split(",")
+    genders = item["gender"].strip().split(",")
+    levels = item["level"].strip().split(",")
+    interests = item["interests"].strip().split(",")
+    for age in ages:
+        if age == "":
+            continue
+        key2vid["age_{}".format(age.strip())].append(vid)
+    for gender in genders:
+        if gender == "":
+            continue
+        key2vid["gender_{}".format(gender.strip())].append(vid)
+    for level in levels:
+        if level == "":
+            continue
+        key2vid["level_{}".format(level.strip())].append(vid)
+    for interest in interests:
+        if interest == "":
+            continue
+        key2vid["interest_{}".format(interest.strip())].append(vid)
+
 
 real_idx=0
 app = Flask(__name__)
@@ -20,41 +59,54 @@ def login():
 
 @app.route('/get_video', methods=["POST"])
 def get_video():
-    k12 = {"hard": [2, 5, 10, 11, 15, 20, 22, 33, 35, 38, 42], "easy": [23, 24, 25, 27, 28, 29, 43, 44, 45, 46, 47, 48, 49, 50], "middle": [4, 7, 8, 9, 12, 13, 14, 16, 18, 19, 26, 32, 37, 40, 41]}
-    child = {"hard": [1, 6, 17, 34, 36, 39], "easy": [3, 31, 21, 30]}
-    #age = request.form.get("age")
-    #level = request.form.get("level")
-    global real_idx
-    age = "child"
-    level = "hard"
-    real_idx += 1
-    if (real_idx % 2) == 0:
-       return {"code": 200, "msg": "success", "video_name": "k12\\hard\\22\\22.mp4", "srt_name": "k12\\hard\\22\\22.srt"}
-    else:
-       return {"code": 200, "msg": "success", "video_name": "k12\\easy\\28\\28.mp4", "srt_name": "k12\\easy\\28\\28.srt"}
-    #local_path = "C:\\Users\\duyix\\Desktop\\app\\myapp\\public\\k12"
-    if not level in {"hard", "easy", "middle"}:
-        return {"code": 200, "msg": "success", "video_name": "", "srt_name": ""}
-    if age == "k12":
-        tmp_list = k12[level]
-        idx = real_idx % len(tmp_list)
-        print (idx)
+    real_age = int(request.form.get("age"))
+    level = request.form.get("level")
+    interests = request.form.get("interests")
+    gender = request.form.get("gender").lower()
 
-        #rd.shuffle(tmp_list)
-        video_name = "{}\\{}\\{}\\{}".format(age, level, tmp_list[idx], "{}.mp4".format(tmp_list[idx]))
-        srt_name = "{}\\{}\\{}\\{}".format(age, level, tmp_list[idx], "{}.srt".format(tmp_list[idx]))
-    elif age == "child":
-        tmp_list = child[level]
-        #rd.shuffle(tmp_list)
-        idx = real_idx % len(tmp_list)
-        print (idx)
-        video_name = "{}\\{}\\{}\\{}".format(age, level, tmp_list[idx], "{}.mp4".format(tmp_list[idx]))
-        srt_name = "{}\\{}\\{}\\{}".format(age, level, tmp_list[idx], "{}.srt".format(tmp_list[idx]))
-    else:
-        video_name = ""
-        srt_name = ""
 
-    msg = {"code": 200, "msg": "success", "video_name": video_name, "srt_name": srt_name}
+    global key2vid
+    global video_infod
+    global video_quizd
+    
+
+    # if not level in {"hard", "easy", "middle"}:
+    #     return {"code": 200, "msg": "success", "video_name": "", "srt_name": ""}
+    if real_age < 6:
+        age = "prek"
+    elif real_age < 18:
+        age = "k12"
+    else:
+        age = "adult"
+
+
+    age_vidset = set(key2vid["age_{}".format(age)])
+    gender_vidset = set(key2vid["gender_{}".format(gender)])
+    level_vidlist = list()
+    if level == "hard":
+        cefr_list = ["B1", "B2", "C1", "C2"]
+    elif level == "middle":
+        cefr_list = ["A2", "B1", "B2"]
+    else:
+        cefr_list = ["A1", "A2", "B1"]
+    for cefr in cefr_list:
+        level_vidlist += key2vid["level_{}".format(cefr)]
+    level_vidset = set(level_vidlist)
+
+    refer_vidlist = list(age_vidset & gender_vidset & level_vidset)
+    rd.shuffle(refer_vidlist)
+    refer_vid = refer_vidlist[0]
+
+    video_name = video_infod[refer_vid]["video_path"]
+    srt_name = video_infod[refer_vid]["en_srt"]
+
+    question = video_quizd[refer_vid]["question"]
+    options = video_quizd[refer_vid]["options"]
+    answer = video_quizd[refer_vid]["answer"]
+
+
+
+    msg = {"code": 200, "msg": "success", "video_name": video_name, "srt_name": srt_name, "question": question, "options": options, "answer": answer}
     return msg
 
 @app.route("/mdd", methods=["POST"])
