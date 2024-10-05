@@ -59,15 +59,28 @@ def login():
 
 @app.route('/get_video', methods=["POST"])
 def get_video():
-    real_age = int(request.form.get("age"))
-    level = request.form.get("level")
-    interests = request.form.get("interests")
-    gender = request.form.get("gender").lower()
-
 
     global key2vid
     global video_infod
     global video_quizd
+    try:
+        real_age = int(request.form.get("age"))
+        level = request.form.get("level")
+        interests = request.form.get("interests")
+        gender = request.form.get("gender").lower()
+    except:
+        vidlist = list(video_infod.keys())
+        rd.shuffle(vidlist)
+        refer_vid = vidlist[0]
+
+        video_name = video_infod[refer_vid]["video_path"]
+        srt_name = video_infod[refer_vid]["en_srt"]
+        question = video_quizd[refer_vid]["question"]
+        options = video_quizd[refer_vid]["options"]
+        answer = video_quizd[refer_vid]["answer"]
+        msg = {"code": 200, "msg": "success", "video_name": video_name, "srt_name": srt_name, "question": question, "options": options, "answer": answer}
+        return msg
+
     
 
     # if not level in {"hard", "easy", "middle"}:
