@@ -48,7 +48,7 @@ app = Flask(__name__)
 
 @app.route('/login', methods=["POST"])
 def login():
-    accessable_user = [{"username": "k12", "password": "123456"}, {"username": "child", "password": "123456"}]
+    accessable_user = [{"username": "k12", "password": "123456"}, {"username": "child", "password": "123456"}, {"username": "investor_test", "password": "123123"}]
     username= request.form.get('username')
     password = request.form.get('password')
     for item in accessable_user:
@@ -85,12 +85,8 @@ def get_video():
 
     # if not level in {"hard", "easy", "middle"}:
     #     return {"code": 200, "msg": "success", "video_name": "", "srt_name": ""}
-    if real_age < 6:
-        age = "prek"
-    elif real_age < 18:
-        age = "k12"
-    else:
-        age = "adult"
+    if real_age < 6: age = "prek" elif real_age < 18: age = "k12" else: age
+    = "adult"
 
 
     age_vidset = set(key2vid["age_{}".format(age)])
