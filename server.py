@@ -6,6 +6,7 @@ import random as rd
 import pandas as pd
 import json
 from collections import defaultdict
+from user import UserInfo
 
 video_quizd = dict()
 lines = open("video_metainfo.jsonl").readlines()
@@ -42,19 +43,32 @@ for i in range(df.shape[0]):
             continue
         key2vid["interest_{}".format(interest.strip())].append(vid)
 
+user_info = UserInfo()
 
 real_idx=0
 app = Flask(__name__)
 
 @app.route('/login', methods=["POST"])
 def login():
-    accessable_user = [{"username": "k12", "password": "123456"}, {"username": "child", "password": "123456"}, {"username": "investor_test", "password": "123123"}]
+    global user_info
+    # accessable_user = [{"username": "k12", "password": "123456"}, {"username": "child", "password": "123456"}, {"username": "investor_test", "password": "123123"}]
     username= request.form.get('username')
     password = request.form.get('password')
-    for item in accessable_user:
-        if item["username"] == username and item["password"] == password:
-            return {"code": 200, "msg": "success", "age": item["username"]}
-    msg = {"code": 200, 'msg': 'failed'}
+    # for item in accessable_user:
+    #     if item["username"] == username and item["password"] == password:
+    if user_info.user_is_exist(username, password):
+            return {"code": 200, "status": "success"}
+    msg = {"code": 200, 'status': 'failed'}
+    return msg
+
+@app.route('/signup', methods=["POST"])
+def signup():
+    global user_info
+    username= request.form.get('username')
+    password = request.form.get('password')
+    if user_info.user_signup(username, password) == 0:
+            return {"code": 200, "status": "success"}
+    msg = {"code": 200, 'status': 'failed', "msg": "username repeated"}
     return msg
 
 @app.route('/get_video', methods=["POST"])
