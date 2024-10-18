@@ -57,8 +57,8 @@ def login():
     # for item in accessable_user:
     #     if item["username"] == username and item["password"] == password:
     if user_info.user_is_exist(username, password):
-            return {"code": 200, "status": "success"}
-    msg = {"code": 200, 'status': 'failed'}
+            return {"code": 200, "status": "success", "msg": "success"}
+    msg = {"code": 200, 'status': 'failed', "msg": "failed"}
     return msg
 
 @app.route('/signup', methods=["POST"])
