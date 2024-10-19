@@ -94,6 +94,7 @@ def send_user_info():
 def get_video_file():
     video_dir = "~/work/lingtok/lingtok_server"
     video_name = request.form.get("videoname")
+    video_name = video_name.replace("\\", "/")
     return send_file(video_name, mimetype="video/mp4")
 
 @app.route('/get_video', methods=["POST"])
