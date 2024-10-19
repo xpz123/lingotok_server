@@ -237,15 +237,17 @@ def get_video_list():
 
 @app.route('/get_video_with_username', methods=["POST"])
 def get_video_with_username():
-
+    global user_info
     global key2vid
     global video_infod
     global video_quizd
     try:
-        real_age = int(request.form.get("age"))
-        level = request.form.get("level")
-        interests = request.form.get("interests")
-        gender = request.form.get("gender").lower()
+        username = request.form.get("username")
+        info = user_info.fetch_user_info(username)
+        real_age = int(info["age"])
+        level = info["level"]
+        interests = info["interests"]
+        gender = info["gender"]
     except:
         vidlist = list(video_infod.keys())
         rd.shuffle(vidlist)

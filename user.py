@@ -26,7 +26,8 @@ class UserInfo:
 		if user.shape[0] > 0:
 			return 1
 		else:
-			new_user = {"username": username, "password": password, "age": -1, "gender": "", "level": "", "interests": ""}
+			# Defulat info: age-5 gender-female level-easy interests-
+			new_user = {"username": username, "password": password, "age": 5, "gender": "female", "level": "easy", "interests": ""}
 			self.df = self.df.append(new_user, ignore_index=True)
 			self.dump_data()
 		return 0
@@ -39,7 +40,7 @@ class UserInfo:
 		if user.shape[0] == 0:
 			return 1
 		if age != None:
-			self.df.loc[(self.df["username"] == username), "age"] = age
+			self.df.loc[(self.df["username"] == username), "age"] = int(age)
 		if gender != None:
 			self.df.loc[(self.df["username"] == username), "gender"] = gender
 		if level != None:
@@ -51,7 +52,7 @@ class UserInfo:
 
 	def fetch_user_info(self, username):
 		user = self.df[(self.df["username"] == username)]
-		if user.shape[0] > 0:
+		if user.shape[0] <= 0:
 			return None
 		res = dict()
 		res["age"] = user.iloc[0]["age"]
