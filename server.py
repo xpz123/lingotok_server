@@ -90,9 +90,11 @@ def send_user_info():
     return msg
 
 
-# @app.route("/get_video_file", methods=["POST"])
-# def get_video_file():
-#     video_dir = 
+@app.route("/get_video_file", methods=["POST"])
+def get_video_file():
+    video_dir = "~/work/lingtok/lingtok_server"
+    video_name = request.form.get("videoname")
+    return send_file(video_name, mimetype="video/mp4")
 
 @app.route('/get_video', methods=["POST"])
 def get_video():
@@ -162,6 +164,78 @@ def get_video():
 
 @app.route('/get_video_list', methods=["POST"])
 def get_video_list():
+
+    global key2vid
+    global video_infod
+    global video_quizd
+    try:
+        real_age = int(request.form.get("age"))
+        level = request.form.get("level")
+        interests = request.form.get("interests")
+        gender = request.form.get("gender").lower()
+    except:
+        vidlist = list(video_infod.keys())
+        rd.shuffle(vidlist)
+        res_list = list()
+        for i in range(min(5, len(vidlist))):
+            refer_vid = vidlist[i]
+
+            video_name = video_infod[refer_vid]["video_path"]
+            srt_name = video_infod[refer_vid]["en_srt"]
+            question = video_quizd[refer_vid]["question"]
+            options = video_quizd[refer_vid]["options"]
+            answer = video_quizd[refer_vid]["answer"]
+            res_list.append({"video_name": video_name, "srt_name": srt_name, "question": question, "options": options, "answer": answer})
+        msg = {"code": 200, "msg": "success", "video_list": res_list}
+        return msg
+
+    
+
+    # if not level in {"hard", "easy", "middle"}:
+    #     return {"code": 200, "msg": "success", "video_name": "", "srt_name": ""}
+    if real_age < 6:
+        age = "prek"
+    elif real_age < 18:
+        age = "k12"
+    else:
+        age = "adult"
+
+
+    age_vidset = set(key2vid["age_{}".format(age)])
+    gender_vidset = set(key2vid["gender_{}".format(gender)])
+    level_vidlist = list()
+    if level == "hard":
+        cefr_list = ["B1", "B2", "C1", "C2"]
+    elif level == "middle":
+        cefr_list = ["A2", "B1", "B2"]
+    else:
+        cefr_list = ["A1", "A2", "B1"]
+    for cefr in cefr_list:
+        level_vidlist += key2vid["level_{}".format(cefr)]
+    level_vidset = set(level_vidlist)
+
+    refer_vidlist = list(age_vidset & gender_vidset & level_vidset)
+    rd.shuffle(refer_vidlist)
+    res_list = list()
+    for i in range(min(5, len(refer_vidlist))):
+        refer_vid = refer_vidlist[i]
+
+        video_name = video_infod[refer_vid]["video_path"]
+        srt_name = video_infod[refer_vid]["en_srt"]
+
+        question = video_quizd[refer_vid]["question"]
+        options = video_quizd[refer_vid]["options"]
+        answer = video_quizd[refer_vid]["answer"]
+        res_list.append({"video_name": video_name, "srt_name": srt_name, "question": question, "options": options, "answer": answer})
+
+
+
+    msg = {"code": 200, "msg": "success", "video_list": res_list}
+    return msg
+
+
+@app.route('/get_video_with_username', methods=["POST"])
+def get_video_with_username():
 
     global key2vid
     global video_infod
