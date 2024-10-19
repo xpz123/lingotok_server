@@ -1,5 +1,5 @@
 # -*-codeing=utf-8-*-
-from flask import Flask, request
+from flask import Flask, request, send_file
 import os
 from mdd import rtevl
 import random as rd
@@ -71,6 +71,29 @@ def signup():
     msg = {"code": 200, 'status': 'failed', "msg": "username repeated"}
     return msg
 
+@app.route('/send_user_info', methods=["POST"])
+def send_user_info():
+    global user_info
+    try:
+        username= request.form.get('username')
+        age = request.form.get('age')
+        level = request.form.get('level')
+        gender = request.form.get('gender')
+        interests = request.form.get('interests')
+        if user_info.update_user_info(username, age=age, gender=gender, level=level, interests=interests) == 0:
+            msg = {"code": 200, 'status': 'success', "msg": "update user info successfully"}
+        else:
+            msg = {"code": 200, 'status': 'failed', "msg": "cannot find username:{}".format(username)}
+    except:
+        msg = {"code": 200, 'status': 'failed', "msg": "update user info failed"}
+
+    return msg
+
+
+# @app.route("/get_video_file", methods=["POST"])
+# def get_video_file():
+#     video_dir = 
+
 @app.route('/get_video', methods=["POST"])
 def get_video():
 
@@ -137,7 +160,7 @@ def get_video():
     return msg
 
 
-app.route('/get_video_list', methods=["POST"])
+@app.route('/get_video_list', methods=["POST"])
 def get_video_list():
 
     global key2vid
