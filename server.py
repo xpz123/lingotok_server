@@ -147,6 +147,9 @@ def get_video():
     level_vidset = set(level_vidlist)
 
     refer_vidlist = list(age_vidset & gender_vidset & level_vidset)
+    # 如果交集为空，就按年龄推荐
+    if len(refer_vidlist) == 0:
+        refer_vidlist = age_vidset
     rd.shuffle(refer_vidlist)
     refer_vid = refer_vidlist[0]
 
@@ -290,6 +293,9 @@ def get_video_with_username():
     level_vidset = set(level_vidlist)
 
     refer_vidlist = list(age_vidset & gender_vidset & level_vidset)
+    # 如果交集为空，就按年龄推荐
+    if len(refer_vidlist) == 0:
+        refer_vidlist = age_vidset
     rd.shuffle(refer_vidlist)
     res_list = list()
     for i in range(min(5, len(refer_vidlist))):
