@@ -93,7 +93,8 @@ def send_user_info():
 @app.route("/get_video_file", methods=["GET"])
 def get_video_file():
     video_dir = "~/work/lingtok/lingtok_server"
-    video_name = request.form.get("videoname")
+    # video_name = request.form.get("videoname")
+    video_name = request.args.get("videoname")
     video_name = video_name.replace("\\", "/")
     return send_file(video_name, mimetype="video/mp4")
 
@@ -150,6 +151,7 @@ def get_video():
     # 如果交集为空，就按年龄推荐
     if len(refer_vidlist) == 0:
         refer_vidlist = age_vidset
+
     rd.shuffle(refer_vidlist)
     refer_vid = refer_vidlist[0]
 
