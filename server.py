@@ -90,7 +90,7 @@ def send_user_info():
     return msg
 
 
-@app.route("/get_video_file", methods=["POST"])
+@app.route("/get_video_file", methods=["GET"])
 def get_video_file():
     video_dir = "~/work/lingtok/lingtok_server"
     video_name = request.form.get("videoname")
