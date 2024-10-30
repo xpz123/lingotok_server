@@ -98,6 +98,15 @@ def get_video_file():
     video_name = video_name.replace("\\", "/")
     return send_file(video_name, mimetype="video/mp4")
 
+@app.route("/get_srt_file", methods=["GET"])
+def get_srt_file():
+    video_dir = "~/work/lingtok/lingtok_server"
+    # video_name = request.form.get("videoname")
+    video_name = request.args.get("srtname")
+    video_name = video_name.replace("\\", "/")
+    return send_file(video_name)
+
+
 @app.route('/get_video', methods=["POST"])
 def get_video():
 
@@ -252,7 +261,7 @@ def get_video_with_username():
         real_age = int(info["age"])
         level = info["level"]
         interests = info["interests"]
-        gender = info["gender"]
+        gender = info["gender"].lower()
     except:
         vidlist = list(video_infod.keys())
         rd.shuffle(vidlist)
@@ -284,12 +293,21 @@ def get_video_with_username():
     age_vidset = set(key2vid["age_{}".format(age)])
     gender_vidset = set(key2vid["gender_{}".format(gender)])
     level_vidlist = list()
+
+    if type(level) == float:
+        if level >= 4:
+            level = "hard"
+        elif level >= 2:
+            level = "middle"
+        else:
+            level = "easy"
+
     if level == "hard":
         cefr_list = ["B1", "B2", "C1", "C2"]
     elif level == "middle":
         cefr_list = ["A2", "B1", "B2"]
     else:
-        cefr_list = ["A1", "A2", "B1"]
+        cefr_list = ["A1", "A2"]
     for cefr in cefr_list:
         level_vidlist += key2vid["level_{}".format(cefr)]
     level_vidset = set(level_vidlist)
