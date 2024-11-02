@@ -89,6 +89,30 @@ def send_user_info():
 
     return msg
 
+@app.route('/send_user_behavior', methods=["POST"])
+def send_user_behavior():
+    global user_info
+    try:
+        username= request.form.get('username')
+        behavior_dict = dict()
+        behavior_dict["app_usage_duration"] = request.form.get('app_usage_duration')
+        behavior_dict["watched_video_duration"] = request.form.get('watched_video_duration')
+        behavior_dict["watched_video_count"] = request.form.get('watched_video_count')
+        behavior_dict["made_quiz_count"] = request.form.get('made_quiz_count')
+        behavior_dict["correct_quiz_count"] = request.form.get('correct_quiz_count')
+        behavior_dict["read_video_count"] = request.form.get('read_video_count')
+        behavior_dict["read_sentence_count"] = request.form.get('read_sentence_count')
+
+
+        if user_info.update_user_behavior(username, behavior_dict) == 0:
+            msg = {"code": 200, 'status': 'success', "msg": "update user info successfully"}
+        else:
+            msg = {"code": 200, 'status': 'failed', "msg": "cannot find username:{}".format(username)}
+    except:
+        msg = {"code": 200, 'status': 'failed', "msg": "update user info failed"}
+
+    return msg
+
 
 @app.route("/get_video_file", methods=["GET"])
 def get_video_file():

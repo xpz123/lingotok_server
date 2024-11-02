@@ -6,6 +6,7 @@ import sys
 class UserInfo:
 	def __init__(self):
 		self.df = pd.read_csv("user_info.csv", dtype={"password": str})
+		self.user_behavior_df = pd.read_csv("user_analysis_info.csv")
 
 
 	def user_is_exist(self, username, password):
@@ -15,8 +16,11 @@ class UserInfo:
 		else:
 			return False
 
-	def dump_data(self):
+	def dump_info(self):
 		self.df.to_csv("user_info.csv", index=False)
+	
+	def dump_behavior(self):
+		self.user_behavior_df.to_csv("user_analysis_info.csv", index=False)
 
 	def user_signup(self, username, password):
 		# status code:
@@ -28,8 +32,8 @@ class UserInfo:
 		else:
 			# Defulat info: age-5 gender-female level-easy interests-
 			new_user = {"username": username, "password": password, "age": 5, "gender": "female", "level": "easy", "interests": ""}
-			self.df = self.df.append(new_user, ignore_index=True)
-			self.dump_data()
+			self.df = pd.concat([self.df, pd.DataFrame(new_user, index=[0])], ignore_index=True)
+			self.dump_info()
 		return 0
 
 	def update_user_info(self, username, age=None, gender=None, level=None, interests=None):
@@ -47,7 +51,23 @@ class UserInfo:
 			self.df.loc[(self.df["username"] == username), "level"] = level
 		if interests != None:
 			self.df.loc[(self.df["username"] == username), "interests"] = interests
-		self.dump_data()
+		self.dump_info()
+		return 0
+	
+	def update_user_behavior(self, username, behavior_dict):
+		# status code:
+		## 0: success
+		## 1: failed
+		user = self.user_behavior_df[(self.user_behavior_df["username"] == username)]
+		if user.shape[0] == 0:
+			new_user = behavior_dict
+			new_user["username"] = username
+			self.user_behavior_df = pd.concat([self.user_behavior_df, pd.DataFrame(new_user, index=[0])], ignore_index=True)
+		else:
+			for key in behavior_dict.keys():
+				self.user_behavior_df.loc[self.user_behavior_df["username"] == username, key] = behavior_dict[key]
+
+		self.dump_behavior()
 		return 0
 
 	def fetch_user_info(self, username):
