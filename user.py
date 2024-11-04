@@ -1,6 +1,7 @@
 import pandas as pd
 import os
 import sys
+import json
 
 
 class UserInfo:
@@ -8,6 +9,11 @@ class UserInfo:
 		self.df = pd.read_csv("user_info.csv", dtype={"password": str})
 		self.user_behavior_df = pd.read_csv("user_analysis_info.csv")
 
+		self.username_video_dict = dict()
+		lines = open("vip_video_id.jsonl").readlines()
+		for l in lines:
+			item = json.loads(l.strip())
+			self.username_video_dict[item["username"]] = item["video_ids"]
 
 	def user_is_exist(self, username, password):
 		user = self.df[(self.df["username"] == username) & (self.df["password"] == password)]
@@ -70,6 +76,11 @@ class UserInfo:
 		self.dump_behavior()
 		return 0
 
+	def process_vid(self, username):
+		if not username in self.username_video_dict.keys():
+			return None
+		return self.username_video_dict[username]
+	
 	def fetch_user_info(self, username):
 		user = self.df[(self.df["username"] == username)]
 		if user.shape[0] <= 0:

@@ -7,6 +7,7 @@ import pandas as pd
 import json
 from collections import defaultdict
 from user import UserInfo
+from util import *
 
 video_quizd = dict()
 lines = open("video_metainfo.jsonl").readlines()
@@ -25,7 +26,7 @@ for i in range(df.shape[0]):
     ages = item["age"].strip().split(",")
     genders = item["gender"].strip().split(",")
     levels = item["level"].strip().split(",")
-    interests = item["interests"].strip().split(",")
+    interests = str(item["interests"]).strip().split(",")
     for age in ages:
         if age == "":
             continue
@@ -279,8 +280,11 @@ def get_video_with_username():
     global key2vid
     global video_infod
     global video_quizd
+    global vip_name_set
     try:
         username = request.form.get("username")
+
+        
         info = user_info.fetch_user_info(username)
         real_age = int(info["age"])
         level = info["level"]
