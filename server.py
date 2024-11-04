@@ -303,7 +303,7 @@ def get_video_with_username():
             question = video_quizd[refer_vid]["question"]
             options = video_quizd[refer_vid]["options"]
             answer = video_quizd[refer_vid]["answer"]
-            res_list.append({"video_name": video_name, "srt_name": srt_name, "zhihu_url": zhihu_url, "question": question, "options": options, "answer": answer})
+            res_list.append({"video_name": srt_name, "srt_name": srt_name, "zhihu_url": zhihu_url, "question": question, "options": options, "answer": answer})
         msg = {"code": 200, "msg": "success", "video_list": res_list}
         return msg
 
@@ -358,7 +358,7 @@ def get_video_with_username():
         options = video_quizd[refer_vid]["options"]
         answer = video_quizd[refer_vid]["answer"]
         zhihu_url = video_infod[refer_vid]["zhihu_url"]
-        res_list.append({"video_name": video_name, "srt_name": srt_name, "zhihu_url": zhihu_url, "question": question, "options": options, "answer": answer})
+        res_list.append({"video_name": srt_name, "srt_name": srt_name, "zhihu_url": zhihu_url, "question": question, "options": options, "answer": answer})
 
 
 
