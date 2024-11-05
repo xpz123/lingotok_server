@@ -76,7 +76,7 @@ class UserInfo:
 		self.dump_behavior()
 		return 0
 
-	def process_vid(self, username):
+	def process_vip(self, username):
 		if not username in self.username_video_dict.keys():
 			return None
 		return self.username_video_dict[username]

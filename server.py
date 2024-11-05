@@ -47,6 +47,7 @@ for i in range(df.shape[0]):
 user_info = UserInfo()
 
 real_idx=0
+vip_idx=0
 app = Flask(__name__)
 
 @app.route('/login', methods=["POST"])
@@ -281,9 +282,25 @@ def get_video_with_username():
     global video_infod
     global video_quizd
     global vip_name_set
+    global vip_idx
     try:
         username = request.form.get("username")
-
+        vip_video_list = user_info.process_vip(username)
+        if vip_video_list != None:
+            vip_res_list = list()
+            for i in range(5):
+                refer_vid = str(vip_video_list[vip_idx%len(vip_video_list)])
+                vip_idx += 1
+                video_name = video_infod[refer_vid]["video_path"]
+                srt_name = video_infod[refer_vid]["en_srt"]
+                zhihu_url = video_infod[refer_vid]["zhihu_url"]
+                question = video_quizd[refer_vid]["question"]
+                options = video_quizd[refer_vid]["options"]
+                answer = video_quizd[refer_vid]["answer"]
+                zhihu_url = video_infod[refer_vid]["zhihu_url"]
+                vip_res_list.append({"video_name": srt_name, "srt_name": srt_name, "zhihu_url": zhihu_url, "question": question, "options": options, "answer": answer})
+            msg = {"code": 200, "msg": "success", "video_list": vip_res_list}
+            return msg
         
         info = user_info.fetch_user_info(username)
         real_age = int(info["age"])
