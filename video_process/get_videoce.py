@@ -5,7 +5,7 @@ import shutil
 import json
 from video_processor import VideoProcessor
 from tqdm import tqdm
-
+from process_zhihu import load_id2url
 
 def cp_video_ce(df, root_dir, minid=0, maxid=100000):
     if not os.path.exists(root_dir):
@@ -143,16 +143,15 @@ def merge_csv(online_csvfile, new_csvfile, metainfo_file, merged_csvfile):
     vid_set = set()
     for l in lines:
         vid_set.add(json.loads(l.strip())["vid"])
-    import pdb
-    pdb.set_trace()
     df_online = pd.read_csv(online_csvfile)
     df_new = pd.read_csv(new_csvfile)
     for i in range(df_new.shape[0]):
         vid = df_new.iloc[i]["vid"]
         en_srt = df_new.iloc[i]["en_srt"]
-        age = df_new.iloc[i]["age"]
-        gender = df_new.iloc[i]["gender"]
-        interests = df_new.iloc[i]["interests"]
+        zhihu_url = df_new.iloc[i]["zhihu_url"]
+        age = df_new.iloc[i].get("age", "k12")
+        gender = df_new.iloc[i].get("gender", "male")
+        interests = df_new.iloc[i].get("interests", "Technology")
         level = df_new.iloc[i]["level"]
         if not str(vid) in vid_set:
             continue
@@ -161,11 +160,67 @@ def merge_csv(online_csvfile, new_csvfile, metainfo_file, merged_csvfile):
             continue
     
         video_info = {"vid": str(vid), "video_path": "", "en_srt": en_srt, "age": age, "gender": gender, \
-            "interests": interests, "level": level}
+            "interests": interests, "level": level, "zhihu_url": zhihu_url}
         df_online = pd.concat([df_online, pd.DataFrame(video_info, index=[0])], ignore_index=True)
 
-    pdb.set_trace()
     df_online.to_csv(merged_csvfile, index=False)
+
+def prep_tangzong_data():
+    # df = pd.read_excel("tangzong.xlsx")
+    # tangzong_urld = load_id2url(filename="tangzong_url.txt")
+    # drop_idxs = []
+    # zhihu_url_list = []
+    # for i in range(df.shape[0]):
+    #     vid = str(df.iloc[i]["vid"])
+    #     if not vid in tangzong_urld.keys():
+    #         drop_idxs.append(i)
+    #         zhihu_url_list.append("")
+    #         continue
+    #     zhihu_url_list.append(tangzong_urld[vid])
+    # df["zhihu_url"] = zhihu_url_list
+    # df.drop(index=drop_idxs, inplace=True)
+    # # df.to_csv("tangzong_zhihu.csv", index=False)
+    # ori_dir = "tangzong_srt"
+    # ensrt_dir = "Video_Finished"
+    # srt_filed = dict()
+    # for root, dirs, files in os.walk(ori_dir):
+    #     for f in files:
+    #         vid = f[0:3]
+    #         file_path = os.path.join(root, f)
+    #         new_file_dir = os.path.join(ensrt_dir, vid)
+    #         # os.makedirs(new_file_dir)
+    #         new_file_path = os.path.join(new_file_dir, "{}_English.srt".format(vid))
+    #         # shutil.copyfile(file_path, new_file_path)
+    #         srt_filed[vid] = new_file_path
+    
+    # drop_idxs = []
+    # ensrt_list = []
+    # zhsrt_list = []
+    # for i in range(df.shape[0]):
+    #     vid = str(df.iloc[i]["vid"])
+    #     if not vid in srt_filed.keys():
+    #         drop_idxs.append(i)
+    #         ensrt_list.append("")
+    #         zhsrt_list.append("")
+    #         continue
+    #     ensrt_list.append(srt_filed[vid])
+    #     zhsrt_list.append(srt_filed[vid].replace("English", "Chinese"))
+    # df["en_srt"] = ensrt_list
+    # df["zh_srt"] = zhsrt_list
+    # df.drop(index=drop_idxs, inplace=True)
+
+    # df.to_csv("tangzong_video_info.csv", index=False)
+    df = pd.read_csv("tangzong_final_video_info.csv")
+    vip_video_list = []
+    
+    for i in range(df.shape[0]):
+        vid = str(df.iloc[i]["vid"])
+        vip_video_list.append(vid)
+    vipd = {"username": "investor_001", "video_ids": vip_video_list}
+    fw = open("../vip_video_id.jsonl", "w")
+    fw.write(json.dumps(vipd))
+
+    
 
 
 if __name__ == '__main__':
@@ -188,5 +243,10 @@ if __name__ == '__main__':
     # cp_esrt(df, "video_Finished_1_377_ori", "video_Finished_211_360_ensrt", minid=211, maxid=360)
     # generate_quiz("video_Finished_211_360_ensrt", "video_metainfo_211_360.jsonl")
     # merge_csv("../lingtok_server/video_info.csv", "video_info_530.csv", "/Users/tal/work/lingtok/lingtok_server/video_metainfo.jsonl", "video_info_merged_1_530.csv")
-    update_video_info_csv("video_info_merged_1_530.csv", "video_info_merged_1_530_relevel.csv", log_csv_filename="530_7b_reason_tag.csv", minid=211, maxid=600)
+    # update_video_info_csv("video_info_merged_1_530.csv", "video_info_merged_1_530_relevel.csv", log_csv_filename="530_7b_reason_tag.csv", minid=211, maxid=600)
+
+    prep_tangzong_data()
+    # update_video_info_csv("tangzong_video_info.csv", "tangzong_video_info_level.csv")
+    # generate_quiz("Video_Finished", "tangzong_video_metainfo.jsonl")
+    # merge_csv("../video_info.csv", "tangzong_video_info_level.csv", "/Users/tal/work/lingtok/lingtok_server/video_metainfo.jsonl", "video_info_merged_tangzong.csv")
 

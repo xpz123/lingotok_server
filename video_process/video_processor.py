@@ -2,7 +2,19 @@ import requests
 import pysrt
 from openai import OpenAI
 import json
+from datetime import timedelta
 
+def milliseconds_to_time_string(ms):
+    delta = timedelta(milliseconds=ms)
+
+    total_seconds = int(delta.total_seconds())
+    
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    milliseconds = delta.microseconds // 1000  # 转换微秒为毫秒
+    
+    time_string = f"{hours:02}:{minutes:02}:{seconds:02},{milliseconds:03}"
+    return time_string
 
 def post_http_request(prompt: str,
                       api_url: str,
@@ -59,6 +71,12 @@ class VideoProcessor:
 
 		return res, reason
 	
+	def generate_srt(self, play_url, srt_file_name):
+		pass
+		# try:
+		# 	ori_resp = call_huoshan_srt(play_url)
+		# 	for i, utt enumerate(ori_resp[""])
+
 	def generate_quiz(self):
 		subtitle_text = self.get_srt_text().replace("\n", " ")
 		if len(subtitle_text) > 1000:
@@ -76,7 +94,7 @@ class VideoProcessor:
 		tmps = json.dumps(tmp)
 		prompt = "#Requirement: Please create a multiple-choice question with four options based on the main content of the following English video. Return in json format. Here is an example of result: {}#English Text: {}".format(tmps, subtitle_text)
 		data = {"sysinfo": "You are an experienced English teacher.", "prompt": ""}
-		url = "http://10.202.196.9:8087/call_qwen25_7b"
+		url = "http://10.202.196.9:8088/call_qwen25_7b"
 		data["prompt"] = prompt
 		response = requests.post(url, data=data)
 		llm_input = json.loads(response.text)["text"]
@@ -91,6 +109,14 @@ class VideoProcessor:
 			res["answer"] = "B"
 		else:
 			res["answer"] = res["answer"][0]
+		if res["options"][0].find("A.") == -1:
+			res["options"][0] = "A. " + res["options"][0]
+		if res["options"][1].find("B.") == -1:
+			res["options"][1] = "B. " + res["options"][1]
+		if res["options"][2].find("C.") == -1:
+			res["options"][2] = "C. " + res["options"][2]
+		if res["options"][3].find("D.") == -1:
+			res["options"][3] = "D. " + res["options"][3]
 		print (res)
 		# reason_start_index = tag_text.rfind("<reason>") + len("<reason>")
 		# reason_end_index = tag_text.rfind("</reason>")
