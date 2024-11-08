@@ -3,6 +3,24 @@ import pysrt
 from openai import OpenAI
 import json
 from datetime import timedelta
+from call_huoshan_srt import *
+from translator import translate_text2ar
+import sys
+
+def zhihu_url_convert(page_url):
+	prefix = "https://lens.zhihu.com/api/v4/videos/"
+	html_text = requests.get(page_url).text
+	vid_begin_idx = html_text.find("videoId") + 10
+	vid_end_idx = html_text[vid_begin_idx:].find('"') + vid_begin_idx
+	vid = html_text[vid_begin_idx:vid_end_idx]
+	static_url = "{}{}".format(prefix, vid)
+
+	play_url_dict = dict()
+	play_info_json = json.loads(requests.get(static_url).text)
+	for item in play_info_json["playlist"].keys():
+		play_url_dict[item] = play_info_json["playlist"][item]["play_url"]
+	return static_url, play_url_dict
+
 
 def milliseconds_to_time_string(ms):
     delta = timedelta(milliseconds=ms)
@@ -71,11 +89,55 @@ class VideoProcessor:
 
 		return res, reason
 	
-	def generate_srt(self, play_url, srt_file_name):
-		pass
-		# try:
-		# 	ori_resp = call_huoshan_srt(play_url)
-		# 	for i, utt enumerate(ori_resp[""])
+	def generate_srt(self, play_url, file_name, gen_ar=False, gen_zh=False):
+		en_srt_fw = open("{}_English.srt".format(file_name), "w")
+		if gen_ar:
+			ar_srt_fw = open("{}_Arabic.srt".format(file_name), "w")
+		if gen_zh:
+			zh_srt_fw = open("{}_Chinese.srt".format(file_name), "w")
+		try:
+			ori_resp = call_huoshan_srt(play_url)
+			text_list = []
+			start_time_list = []
+			end_time_list = []
+			for i, utterance in enumerate(ori_resp["utterances"]):
+				start_time = milliseconds_to_time_string(utterance["start_time"])
+				start_time_list.append(start_time)
+				end_time = milliseconds_to_time_string(utterance["end_time"])
+				end_time_list.append(end_time)
+				text = utterance["text"]
+				text_list.append(text)
+			if gen_ar:
+				ar_text_list = translate_text2ar(text_list, "ar")["TranslationList"]
+				assert len(ar_text_list) == len(text_list)
+			if gen_zh:
+				zh_text_list = translate_text2ar(text_list, "zh")["TranslationList"]
+				assert len(zh_text_list) == len(text_list)
+			
+			en_srt_content = ""
+			ar_srt_content = ""
+			zh_srt_content = ""
+			for i in range(len(text_list)):
+				text = text_list[i]
+				start_time = start_time_list[i]
+				end_time = end_time_list[i]
+				en_srt_content = f"{i}\n{start_time} --> {end_time}\n{text}\n\n"
+				en_srt_fw.write(en_srt_content)
+				if gen_ar:
+					ar_text = ar_text_list[i]["Translation"]
+					ar_srt_content = f"{i}\n{start_time} --> {end_time}\n{ar_text}\n\n"
+					ar_srt_fw.write(ar_srt_content)
+				if gen_zh:
+					zh_text = zh_text_list[i]["Translation"]
+					zh_srt_content = f"{i}\n{start_time} --> {end_time}\n{zh_text}\n\n"
+					zh_srt_fw.write(zh_srt_content)
+			en_srt_fw.close()
+			if gen_ar:
+				ar_srt_fw.close()
+			if gen_zh:
+				zh_srt_fw.close()
+		except Exception as inst:
+			print (str(inst))
 
 	def generate_quiz(self):
 		subtitle_text = self.get_srt_text().replace("\n", " ")
@@ -127,7 +189,11 @@ class VideoProcessor:
 
 
 if __name__ == "__main__":
-	pass
+	page_url = sys.argv[1]
+	srt_name = sys.argv[2]
+	video_processor = VideoProcessor()
+	static_url, play_url_dict =  zhihu_url_convert(page_url)
+	video_processor.generate_srt(play_url_dict["HD"], srt_name, gen_ar=True, gen_zh=True)
 	# data = {"sysinfo": "You are an experienced English teacher who can differentiate the difficulty of a piece of English content by its vocabulary and grammatical content.", "prompt": ""}
 	# url = "http://10.202.196.9:8087/call_qwen25_7b"
 

@@ -147,7 +147,7 @@ def merge_csv(online_csvfile, new_csvfile, metainfo_file, merged_csvfile):
     df_new = pd.read_csv(new_csvfile)
     for i in range(df_new.shape[0]):
         vid = df_new.iloc[i]["vid"]
-        en_srt = df_new.iloc[i]["en_srt"]
+        en_srt = df_new.iloc[i]["en_srt"].replace("/", "\\")
         zhihu_url = df_new.iloc[i]["zhihu_url"]
         age = df_new.iloc[i].get("age", "k12")
         gender = df_new.iloc[i].get("gender", "male")
@@ -245,8 +245,8 @@ if __name__ == '__main__':
     # merge_csv("../lingtok_server/video_info.csv", "video_info_530.csv", "/Users/tal/work/lingtok/lingtok_server/video_metainfo.jsonl", "video_info_merged_1_530.csv")
     # update_video_info_csv("video_info_merged_1_530.csv", "video_info_merged_1_530_relevel.csv", log_csv_filename="530_7b_reason_tag.csv", minid=211, maxid=600)
 
-    prep_tangzong_data()
+    # prep_tangzong_data()
     # update_video_info_csv("tangzong_video_info.csv", "tangzong_video_info_level.csv")
     # generate_quiz("Video_Finished", "tangzong_video_metainfo.jsonl")
-    # merge_csv("../video_info.csv", "tangzong_video_info_level.csv", "/Users/tal/work/lingtok/lingtok_server/video_metainfo.jsonl", "video_info_merged_tangzong.csv")
+    merge_csv("../video_info.csv", "tangzong_video_info_level.csv", "/Users/tal/work/lingtok/lingtok_server/video_metainfo.jsonl", "video_info_merged_tangzong.csv")
 
