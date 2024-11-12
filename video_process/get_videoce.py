@@ -3,7 +3,7 @@ import sys
 import pandas as pd
 import shutil
 import json
-from video_processor import VideoProcessor
+from video_processor import VideoProcessor, zhihu_url_convert
 from tqdm import tqdm
 from process_zhihu import load_id2url
 
@@ -132,10 +132,10 @@ def generate_quiz(ensrt_dir, metainfo_file):
                 video_processor.load_srt(ensrt_filename)
                 quiz = video_processor.generate_quiz()
                 quiz["vid"] = vid
-                print (quiz)
+                # print (quiz)
                 fw.write(json.dumps(quiz) + "\n")
-            except:
-                pass
+            except Exception as e:
+                print (str(e))
     fw.close()
 
 def merge_csv(online_csvfile, new_csvfile, metainfo_file, merged_csvfile):
@@ -221,6 +221,59 @@ def prep_tangzong_data():
     fw.write(json.dumps(vipd))
 
     
+def prep_zhongdong_data():
+    # df = pd.read_csv("zhongdong/zhihu_ori_0_20.csv")
+    # srt_dir = "zhongdong/Video_Finished"
+    # zhihu_url_list = []
+    # en_srt_name_list = []
+    # zh_srt_name_list = []
+    # ar_srt_name_list = []
+    # for i in tqdm(range(df.shape[0])):
+    #     try:
+    #         vid = df.iloc[i]["vid"]
+    #         page_url = df.iloc[i]["zhihu_ori_url"]
+    #         static_url, play_url_dict =  zhihu_url_convert(page_url)
+    #         zhihu_url_list.append(static_url)
+    #         video_processor = VideoProcessor()
+    #         srt_vid_dir = os.path.join(srt_dir, vid)
+    #         os.makedirs(srt_vid_dir)
+    #         srt_name = srt_vid_dir + "/" + vid
+    #         play_url = ""
+    #         if "HD" in play_url_dict.keys():
+    #             play_url = play_url_dict["HD"]
+    #         elif "LD" in play_url_dict.keys():
+    #             play_url = play_url_dict["LD"]
+    #         elif "SD" in play_url_dict.keys():
+    #             play_url = play_url_dict["SD"]
+    #         srtd = video_processor.generate_srt(play_url, srt_name, gen_ar=True, gen_zh=True)
+    #         en_srt_name_list.append(srtd["er_srt"].replace("/", "\\"))
+    #         zh_srt_name_list.append(srtd["zh_srt"].replace("/", "\\"))
+    #         ar_srt_name_list.append(srtd["ar_srt"].replace("/", "\\"))
+    #     except Exception as inst:
+    #         print (vid)
+    #         print (static_url)
+    #         print (str(inst))
+    #         if len(zhihu_url_list) == i:
+    #             zhihu_url_list.append("")
+    #         en_srt_name_list.append("")
+    #         zh_srt_name_list.append("")
+    #         ar_srt_name_list.append("")
+    # df["zhihu_url"] = zhihu_url_list
+    # df["srt_name"] = en_srt_name_list
+    # df["zh_srt_name"] = zh_srt_name_list
+    # df["ar_srt_name"] = ar_srt_name_list
+    # df.to_csv("zhongdong/zhihu_url_srt.csv", index=False)
+
+    generate_quiz("zhongdong/Video_Finished", "zhongdong/zhongdong_video_metainfo.jsonl")
+
+def prep_srt_data():
+    df = pd.read_csv("../video_info.csv")
+    tmp_srt = df.iloc[0]["en_srt"]
+    print (tmp_srt)
+    video_processor = VideoProcessor()
+    import pdb
+    pdb.set_trace()
+    video_processor.translate_srt(tmp_srt)
 
 
 if __name__ == '__main__':
@@ -248,5 +301,9 @@ if __name__ == '__main__':
     # prep_tangzong_data()
     # update_video_info_csv("tangzong_video_info.csv", "tangzong_video_info_level.csv")
     # generate_quiz("Video_Finished", "tangzong_video_metainfo.jsonl")
-    merge_csv("../video_info.csv", "tangzong_video_info_level.csv", "/Users/tal/work/lingtok/lingtok_server/video_metainfo.jsonl", "video_info_merged_tangzong.csv")
+    # merge_csv("../video_info.csv", "tangzong_video_info_level.csv", "/Users/tal/work/lingtok/lingtok_server/video_metainfo.jsonl", "video_info_merged_tangzong.csv")
+
+    # prep_zhongdong_data()
+
+    prep_srt_data()
 

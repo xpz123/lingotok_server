@@ -90,11 +90,14 @@ class VideoProcessor:
 		return res, reason
 	
 	def generate_srt(self, play_url, file_name, gen_ar=False, gen_zh=False):
+		res = {"er_srt": "{}_English.srt".format(file_name)}
 		en_srt_fw = open("{}_English.srt".format(file_name), "w")
 		if gen_ar:
 			ar_srt_fw = open("{}_Arabic.srt".format(file_name), "w")
+			res["ar_srt"] = "{}_Arabic.srt".format(file_name)
 		if gen_zh:
 			zh_srt_fw = open("{}_Chinese.srt".format(file_name), "w")
+			res["zh_srt"] = "{}_Chinese.srt".format(file_name)
 		try:
 			ori_resp = call_huoshan_srt(play_url)
 			text_list = []
@@ -138,6 +141,43 @@ class VideoProcessor:
 				zh_srt_fw.close()
 		except Exception as inst:
 			print (str(inst))
+		return res
+	
+	def translate_srt(self, filename, gen_ar=True, gen_zh=True):
+		res = {"en_srt": filename}
+		en_srt_data = pysrt.open(res["en_srt"])
+		
+		if gen_ar:
+			res["ar_srt"] = filename.replace("English", "Arbic")
+		if gen_zh:
+			res["zh_srt"] = filename.replace("English", "Chinese")
+		
+		en_srt_text_list = list()
+		for sub in en_srt_data:
+			en_srt_text_list.append(sub.text)
+		
+		try:
+			if gen_ar:
+				ar_text_list = translate_text2ar(en_srt_text_list, "ar")["TranslationList"]
+				assert len(ar_text_list) == len(en_srt_text_list)
+			if gen_zh:
+				zh_text_list = translate_text2ar(en_srt_text_list, "zh")["TranslationList"]
+				assert len(zh_text_list) == len(en_srt_text_list)
+			
+			if gen_ar:
+				for i in range(len(en_srt_data)):
+					ar_text = ar_text_list[i]["Translation"]
+					en_srt_data[i].text = ar_text
+				en_srt_data.save(res["ar_srt"])
+						
+			if gen_zh:
+				for i in range(len(en_srt_data)):
+					zh_text = zh_text_list[i]["Translation"]
+					en_srt_data[i].text = zh_text
+				en_srt_data.save(res["zh_srt"])
+		except Exception as inst:
+			print (str(inst))
+		return res
 
 	def generate_quiz(self):
 		subtitle_text = self.get_srt_text().replace("\n", " ")
@@ -163,6 +203,8 @@ class VideoProcessor:
 		resp = post_http_request(prompt=llm_input, api_url="http://10.202.196.9:6679/generate", seed=1234)
 		tag_text = json.loads(resp.text)["text"][0]
 		# print (tag_text)
+		import pdb
+		pdb.set_trace()
 
 		start_index = tag_text.rfind("```json")
 		end_index = tag_text.rfind("```")
@@ -179,7 +221,7 @@ class VideoProcessor:
 			res["options"][2] = "C. " + res["options"][2]
 		if res["options"][3].find("D.") == -1:
 			res["options"][3] = "D. " + res["options"][3]
-		print (res)
+		# print (res)
 		# reason_start_index = tag_text.rfind("<reason>") + len("<reason>")
 		# reason_end_index = tag_text.rfind("</reason>")
 		# reason = tag_text[reason_start_index:reason_end_index]
@@ -189,11 +231,12 @@ class VideoProcessor:
 
 
 if __name__ == "__main__":
-	page_url = sys.argv[1]
-	srt_name = sys.argv[2]
-	video_processor = VideoProcessor()
-	static_url, play_url_dict =  zhihu_url_convert(page_url)
-	video_processor.generate_srt(play_url_dict["HD"], srt_name, gen_ar=True, gen_zh=True)
+	pass
+	# page_url = sys.argv[1]
+	# srt_name = sys.argv[2]
+	# video_processor = VideoProcessor()
+	# static_url, play_url_dict =  zhihu_url_convert(page_url)
+	# video_processor.generate_srt(play_url_dict["HD"], srt_name, gen_ar=True, gen_zh=True)
 	# data = {"sysinfo": "You are an experienced English teacher who can differentiate the difficulty of a piece of English content by its vocabulary and grammatical content.", "prompt": ""}
 	# url = "http://10.202.196.9:8087/call_qwen25_7b"
 
