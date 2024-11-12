@@ -5,6 +5,7 @@ from datetime import timedelta
 from call_huoshan_srt import *
 from translator import translate_text2ar
 import sys
+import os
 
 def zhihu_url_convert(page_url):
 	prefix = "https://lens.zhihu.com/api/v4/videos/"
@@ -142,14 +143,16 @@ class VideoProcessor:
 			print (str(inst))
 		return res
 	
-	def translate_srt(self, filename, gen_ar=True, gen_zh=True):
+	def translate_srt(self, filepath, gen_ar=True, gen_zh=True):
+		filename = filepath.split("\\")[-1]
+		srt_dir = "/".join(filepath.split("\\")[:-1])
 		res = {"en_srt": filename}
 		en_srt_data = pysrt.open(res["en_srt"])
 		
 		if gen_ar:
-			res["ar_srt"] = filename.replace("English", "Arbic")
+			res["ar_srt"] = os.path.join(srt_dir, filename.replace("English", "Arbic"))
 		if gen_zh:
-			res["zh_srt"] = filename.replace("English", "Chinese")
+			res["zh_srt"] = os.path.join(filename.replace("English", "Chinese"))
 		
 		en_srt_text_list = list()
 		for sub in en_srt_data:
@@ -168,12 +171,12 @@ class VideoProcessor:
 					ar_text = ar_text_list[i]["Translation"]
 					en_srt_data[i].text = ar_text
 				en_srt_data.save(res["ar_srt"])
-						
+					
 			if gen_zh:
 				for i in range(len(en_srt_data)):
 					zh_text = zh_text_list[i]["Translation"]
 					en_srt_data[i].text = zh_text
-				en_srt_data.save(res["zh_srt"])
+				en_srt_data.save(srt_dir, res["zh_srt"])
 		except Exception as inst:
 			print (str(inst))
 		return res
