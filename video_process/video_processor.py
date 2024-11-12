@@ -1,6 +1,5 @@
 import requests
 import pysrt
-from openai import OpenAI
 import json
 from datetime import timedelta
 from call_huoshan_srt import *
