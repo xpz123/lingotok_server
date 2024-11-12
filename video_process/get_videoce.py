@@ -271,12 +271,13 @@ def prep_srt_data():
     # zh_srt_list = list()
     ar_srt_list = list()
     video_processor = VideoProcessor()
-    for i in range(df.shape[0]):
+    for i in tqdm(range(df.shape[0])):
         try:
             tmp_srt = df.iloc[i]["en_srt"]
             res = video_processor.translate_srt(tmp_srt)
             ar_srt_list.append(res["ar_srt"].replace("/", "\\"))
         except:
+            print ("bad data")
             ar_srt_list.append("")
     df["ar_srt"] = ar_srt_list
     df.to_csv("video_info_withar.csv")
