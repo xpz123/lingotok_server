@@ -143,7 +143,7 @@ class VideoProcessor:
 			print (str(inst))
 		return res
 	
-	def translate_srt(self, filepath, gen_ar=True, gen_zh=True):
+	def translate_srt(self, filepath, gen_ar=True, gen_zh=False):
 		filename = filepath.split("\\")[-1]
 		srt_dir = "/".join(filepath.split("\\")[:-1])
 		res = {"en_srt": os.path.join(srt_dir,filename)}

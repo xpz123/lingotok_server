@@ -268,12 +268,19 @@ def prep_zhongdong_data():
 
 def prep_srt_data():
     df = pd.read_csv("video_info.csv")
-    tmp_srt = df.iloc[0]["en_srt"]
-    print (tmp_srt)
+    # zh_srt_list = list()
+    ar_srt_list = list()
     video_processor = VideoProcessor()
-    import pdb
-    pdb.set_trace()
-    video_processor.translate_srt(tmp_srt)
+    for i in range(df.shape[0]):
+        try:
+            tmp_srt = df.iloc[i]["en_srt"]
+            res = video_processor.translate_srt(tmp_srt)
+            ar_srt_list.append(res["ar_srt"].replace("/", "\\"))
+        except:
+            ar_srt_list.append("")
+    df["ar_srt"] = ar_srt_list
+    df.to_csv("video_info_withar.csv")
+    
 
 
 if __name__ == '__main__':
