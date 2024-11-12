@@ -146,8 +146,8 @@ class VideoProcessor:
 	def translate_srt(self, filepath, gen_ar=True, gen_zh=True):
 		filename = filepath.split("\\")[-1]
 		srt_dir = "/".join(filepath.split("\\")[:-1])
-		res = {"en_srt": filename}
-		en_srt_data = pysrt.open(res["en_srt"])
+		res = {"en_srt": os.path.join(srt_dir,filename)}
+		en_srt_data = pysrt.open( res["en_srt"])
 		
 		if gen_ar:
 			res["ar_srt"] = os.path.join(srt_dir, filename.replace("English", "Arbic"))
