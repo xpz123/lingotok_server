@@ -152,7 +152,7 @@ class VideoProcessor:
 		if gen_ar:
 			res["ar_srt"] = os.path.join(srt_dir, filename.replace("English", "Arbic"))
 		if gen_zh:
-			res["zh_srt"] = os.path.join(filename.replace("English", "Chinese"))
+			res["zh_srt"] = os.path.join(srt_dir , filename.replace("English", "Chinese"))
 		
 		en_srt_text_list = list()
 		for sub in en_srt_data:
@@ -176,7 +176,7 @@ class VideoProcessor:
 				for i in range(len(en_srt_data)):
 					zh_text = zh_text_list[i]["Translation"]
 					en_srt_data[i].text = zh_text
-				en_srt_data.save(srt_dir, res["zh_srt"])
+				en_srt_data.save(res["zh_srt"])
 		except Exception as inst:
 			print (str(inst))
 		return res
