@@ -267,7 +267,7 @@ def prep_zhongdong_data():
     generate_quiz("zhongdong/Video_Finished", "zhongdong/zhongdong_video_metainfo.jsonl")
 
 def prep_srt_data():
-    df = pd.read_csv("../video_info.csv")
+    df = pd.read_csv("video_info.csv")
     tmp_srt = df.iloc[0]["en_srt"]
     print (tmp_srt)
     video_processor = VideoProcessor()
