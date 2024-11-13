@@ -48,7 +48,18 @@ class UserInfo:
 		## 1: username cannot find
 		user = self.df[(self.df["username"] == username)]
 		if user.shape[0] == 0:
-			return 1
+			new_user = {"username": username}
+			if not age == None:
+				new_user["age"] = int(age)
+			if not gender == None:
+				new_user["gender"] = gender
+			if not level == None:
+				new_user["level"] = level
+			if not interests == None:
+				new_user["interests"] = interests
+			self.df = pd.concat([self.df, pd.DataFrame(new_user, index=[0])], ignore_index=True)
+			self.dump_info()
+			return 0
 		if age != None:
 			self.df.loc[(self.df["username"] == username), "age"] = int(age)
 		if gender != None:
