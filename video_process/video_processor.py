@@ -6,6 +6,7 @@ from call_huoshan_srt import *
 from translator import translate_text2ar
 import sys
 import os
+from vod_huoshan_util import get_vid_playurl
 
 def zhihu_url_convert(page_url):
 	prefix = "https://lens.zhihu.com/api/v4/videos/"
@@ -71,7 +72,7 @@ class VideoProcessor:
 			subtitle_text = subtitle_text[0:1000]
 		prompt = "#Requirements: Please classify the listening comprehension of the following English text into CEFR categories (A1, A2, B1, B2, C1, C2) from the perspective of vocabulary and grammar. The reason needs to be explained before giving the classification result. The reason is wrapped with <reason>, and the classification result is wrapped with <res>. There is three examples: \n#English Text: You wanted to come this time. Little sis! Big sis! You were gone forever. It was 3 days. Where are we going? Before Molly stole Tiffany's heart? Ancestors wanted to connect our island to all the people of the entire ocean. It's my job as a leaf finder to finish what they started. I wanna show how people just how far we'll go. <reason>The text contains a mix of simple and more complex vocabulary and grammatical structures. It includes basic vocabulary such as 'wanted,'' come,' 'sister,' and 'heart,' which are typical of A1 and A2 levels. However, it also includes more advanced vocabulary like 'ancestors,' 'island,' 'ocean,' and 'leaf finder,' which are more characteristic of B1 and B2 levels. The sentence structure is relatively simple, but there are some complex ideas and longer sentences that require a good understanding of context and abstract concepts. The text also includes some idiomatic expressions and colloquial language, such as 'Little sis! Big sis!' and 'Ancestors wanted to connect our island to all the people of the entire ocean,' which might pose a challenge for lower levels. Overall, the text requires a good grasp of both basic and more advanced vocabulary and some understanding of abstract concepts, which aligns with the B1 level.</reason>\n<res>B1</res>\n#English Text: I need an egg.Thank you. <reason>The text contains very basic vocabulary and simple grammatical structures. It includes common words such as 'egg' and 'thank you,' which are typical of A1 level. The sentence structure is straightforward, with simple subject-verb-object patterns. There are no complex ideas or abstract concepts, and the text does not include idiomatic expressions or colloquial language that might pose additional challenges. Therefore, the text is suitable for learners at the A1 level, as it uses basic vocabulary and simple grammar to convey a clear and straightforward message.</reason>\n<res>A1</res>\n#English Text: you complain about a life that you choseyou are not a victimnot at allyour generosity concealed something dirtier and meaneryou're incapable of facing your ambitionsand you resent me for itbut I'm not the one who put you where you areI have nothing to do with ityou're not sacrificing yourself as you sayyouchoose to sit on the sidelines because you're afraidbecause your pride makes your headexplode before you can even come up with a littlegerm of an ideaand now you wake upand your 40 and you need someone to blameand you're the one to blameyou're petrified by your own fucking standardsand your fear of failurethis is the truth. <reason>The text contains a high level of complexity in both vocabulary and grammatical structures, which is characteristic of a C1 or C2 level. It includes a wide range of advanced vocabulary such as 'ambitions,' 'petrified,' 'standards,' and 'fear of failure,' which are typically found in more advanced language proficiency levels. The text also features complex grammatical structures, including the use of subjunctive mood ('you\'re not a victim not at all'), conditional sentences ('you\'re not sacrificing yourself as you say'), and various sentence types that require a deep understanding of English syntax and semantics. The text is also laden with idiomatic expressions and colloquial language, such as 'sitting on the sidelines,' 'petrified by your own fucking standards,' and 'come up with a little germ of an idea,' which can be challenging for learners at lower levels. The overall tone and content of the text are also quite advanced, dealing with mature and complex themes such as personal responsibility, ambition, and self-perception. Therefore, the text is best classified as C1 or C2.</reason>\n<res>C1</res>\n This is a real input. \n#English Text: {}".format(subtitle_text)
 		data = {"sysinfo": "You are an experienced English teacher who can differentiate the difficulty of a piece of English content by its vocabulary and grammatical content.", "prompt": ""}
-		url = "http://10.202.196.9:8087/call_qwen25_7b"
+		url = "http://10.202.196.9:8088/call_qwen25_7b"
 		data["prompt"] = prompt
 		response = requests.post(url, data=data)
 		llm_input = json.loads(response.text)["text"]
@@ -143,6 +144,46 @@ class VideoProcessor:
 			print (str(inst))
 		return res
 	
+	def generate_zhsrt(self, play_url, file_name, gen_ar=False):
+		res = {"er_srt": "{}_Chinese.srt".format(file_name)}
+		en_srt_fw = open("{}_Chinese.srt".format(file_name), "w")
+		if gen_ar:
+			ar_srt_fw = open("{}_Arabic.srt".format(file_name), "w")
+			res["ar_srt"] = "{}_Arabic.srt".format(file_name)
+		try:
+			ori_resp = call_huoshan_srt(play_url, language="zh-CN", words_per_line=15)
+			text_list = []
+			start_time_list = []
+			end_time_list = []
+			for i, utterance in enumerate(ori_resp["utterances"]):
+				start_time = milliseconds_to_time_string(utterance["start_time"])
+				start_time_list.append(start_time)
+				end_time = milliseconds_to_time_string(utterance["end_time"])
+				end_time_list.append(end_time)
+				text = utterance["text"]
+				text_list.append(text)
+			if gen_ar:
+				ar_text_list = translate_text2ar(text_list, "ar")["TranslationList"]
+				assert len(ar_text_list) == len(text_list)
+			
+			ar_srt_content = ""
+			for i in range(len(text_list)):
+				text = text_list[i]
+				start_time = start_time_list[i]
+				end_time = end_time_list[i]
+				en_srt_content = f"{i}\n{start_time} --> {end_time}\n{text}\n\n"
+				en_srt_fw.write(en_srt_content)
+				if gen_ar:
+					ar_text = ar_text_list[i]["Translation"]
+					ar_srt_content = f"{i}\n{start_time} --> {end_time}\n{ar_text}\n\n"
+					ar_srt_fw.write(ar_srt_content)
+			en_srt_fw.close()
+			if gen_ar:
+				ar_srt_fw.close()
+		except Exception as inst:
+			print (str(inst))
+		return res
+	
 	def translate_srt(self, filepath, gen_ar=True, gen_zh=False):
 		filename = filepath.split("\\")[-1]
 		srt_dir = "/".join(filepath.split("\\")[:-1])
@@ -205,8 +246,6 @@ class VideoProcessor:
 		resp = post_http_request(prompt=llm_input, api_url="http://10.202.196.9:6679/generate", seed=1234)
 		tag_text = json.loads(resp.text)["text"][0]
 		# print (tag_text)
-		import pdb
-		pdb.set_trace()
 
 		start_index = tag_text.rfind("```json")
 		end_index = tag_text.rfind("```")
@@ -229,16 +268,25 @@ class VideoProcessor:
 		# reason = tag_text[reason_start_index:reason_end_index]
 
 		return res
-
+  
 
 
 if __name__ == "__main__":
-	pass
+	# pass
+	vid = "v0332eg10064csvclgqljhtacamhhvu0"
+	playurl = get_vid_playurl(vid)
+	print (playurl)
+	video_processor = VideoProcessor()
+	video_processor.generate_zhsrt(playurl, "huoshan/v0332eg10064csvclgqljhtacamhhvu0", gen_ar=True)
+
+
 	# page_url = sys.argv[1]
 	# srt_name = sys.argv[2]
+	# page_url = "http://www.lingotok.com/d313876e469a4550be3135ca7e2e56f3.mp4?auth_key=1732076613-2add8fadd9a84149a0f80a3cc71217be-0-c593db23b69704dacbcad66c0ecb021c"
+	# srt_name = "hls.srt"
 	# video_processor = VideoProcessor()
 	# static_url, play_url_dict =  zhihu_url_convert(page_url)
-	# video_processor.generate_srt(play_url_dict["HD"], srt_name, gen_ar=True, gen_zh=True)
+	# video_processor.generate_srt(page_url, srt_name, gen_ar=True, gen_zh=False)
 	# data = {"sysinfo": "You are an experienced English teacher who can differentiate the difficulty of a piece of English content by its vocabulary and grammatical content.", "prompt": ""}
 	# url = "http://10.202.196.9:8087/call_qwen25_7b"
 

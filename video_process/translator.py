@@ -24,7 +24,6 @@ def translate_text2ar(text_list, target_lang, source_lang="en"):
     service = Service(k_service_info, k_api_info)
     body = {
         'TargetLanguage': target_lang,
-        'SourceLanguage': source_lang,
         'TextList': text_list,
     }
     res = service.json('translate', {}, json.dumps(body))

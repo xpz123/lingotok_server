@@ -72,8 +72,8 @@ def update_video_info_csv(csv_filename, new_csv_filename, log_csv_filename=None,
     df = pd.read_csv(csv_filename)
     for i in tqdm(range(df.shape[0])):
         vid = df.iloc[i]["vid"]
-        if int(vid) < minid or int(vid) > maxid:
-            continue
+        # if int(vid) < minid or int(vid) > maxid:
+        #     continue
         ensrt_filename = df.iloc[i]["en_srt"].replace("\\", "/")
         video_processor.load_srt(ensrt_filename)
 
@@ -145,9 +145,11 @@ def merge_csv(online_csvfile, new_csvfile, metainfo_file, merged_csvfile):
         vid_set.add(json.loads(l.strip())["vid"])
     df_online = pd.read_csv(online_csvfile)
     df_new = pd.read_csv(new_csvfile)
+    vid_list = list()
     for i in range(df_new.shape[0]):
         vid = df_new.iloc[i]["vid"]
         en_srt = df_new.iloc[i]["en_srt"].replace("/", "\\")
+        ar_srt = df_new.iloc[i]["ar_srt"].replace("/", "\\")
         zhihu_url = df_new.iloc[i]["zhihu_url"]
         age = df_new.iloc[i].get("age", "k12")
         gender = df_new.iloc[i].get("gender", "male")
@@ -160,8 +162,11 @@ def merge_csv(online_csvfile, new_csvfile, metainfo_file, merged_csvfile):
             continue
     
         video_info = {"vid": str(vid), "video_path": "", "en_srt": en_srt, "age": age, "gender": gender, \
-            "interests": interests, "level": level, "zhihu_url": zhihu_url}
+            "interests": interests, "level": level, "zhihu_url": zhihu_url, "ar_srt": ar_srt}
         df_online = pd.concat([df_online, pd.DataFrame(video_info, index=[0])], ignore_index=True)
+        vid_list.append(str(vid))
+    print (vid_list)
+
 
     df_online.to_csv(merged_csvfile, index=False)
 
@@ -222,6 +227,7 @@ def prep_tangzong_data():
 
     
 def prep_zhongdong_data():
+    pass
     # df = pd.read_csv("zhongdong/zhihu_ori_0_20.csv")
     # srt_dir = "zhongdong/Video_Finished"
     # zhihu_url_list = []
@@ -264,23 +270,27 @@ def prep_zhongdong_data():
     # df["ar_srt_name"] = ar_srt_name_list
     # df.to_csv("zhongdong/zhihu_url_srt.csv", index=False)
 
-    generate_quiz("zhongdong/Video_Finished", "zhongdong/zhongdong_video_metainfo.jsonl")
+    # generate_quiz("zhongdong/Video_Finished", "zhongdong/zhongdong_video_metainfo.jsonl")
+    # update_video_info_csv("zhongdong/zhihu_url_srt.csv", "zhongdong/zhihu_url_srt_level.csv")
+    # merge_csv("../video_info.csv", "zhongdong/zhihu_url_srt_level.csv", "../video_metainfo.jsonl", "video_info_merged.csv")
 
-def prep_srt_data():
-    df = pd.read_csv("video_info.csv")
-    # zh_srt_list = list()
-    ar_srt_list = list()
-    video_processor = VideoProcessor()
-    for i in tqdm(range(df.shape[0])):
-        try:
-            tmp_srt = df.iloc[i]["en_srt"]
-            res = video_processor.translate_srt(tmp_srt)
-            ar_srt_list.append(res["ar_srt"].replace("/", "\\"))
-        except:
-            print ("bad data")
-            ar_srt_list.append("")
-    df["ar_srt"] = ar_srt_list
-    df.to_csv("video_info_withar.csv")
+
+
+# def prep_srt_data():
+#     df = pd.read_csv("video_info.csv")
+#     # zh_srt_list = list()
+#     ar_srt_list = list()
+#     video_processor = VideoProcessor()
+#     for i in tqdm(range(df.shape[0])):
+#         try:
+#             tmp_srt = df.iloc[i]["en_srt"]
+#             res = video_processor.translate_srt(tmp_srt)
+#             ar_srt_list.append(res["ar_srt"].replace("/", "\\"))
+#         except:
+#             print ("bad data")
+#             ar_srt_list.append("")
+#     df["ar_srt"] = ar_srt_list
+#     df.to_csv("video_info_withar.csv")
     
 
 
@@ -313,5 +323,6 @@ if __name__ == '__main__':
 
     # prep_zhongdong_data()
 
-    prep_srt_data()
+    # prep_srt_data()
+
 

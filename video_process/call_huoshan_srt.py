@@ -6,7 +6,7 @@ base_url = 'https://openspeech.bytedance.com/api/v1/vc'
 appid = "4822083580"
 access_token = "ICPlIxh2QEPMh1otaFjg0AqemFkuyv3a"
 
-language = 'en-US'
+# language = 'zh-CN'
 # file_url = 'https://vdn.vzuu.com/FHD/4f0cd4d6-9a9a-11ef-bc05-fa03f967de9b-v8_f2_t1_le389l8W.mp4?auth_key=1730985590-0-0-778c2d55c0f733f85e67322e79fc8d08&bu=da4bec50&c=avc.8.0&disable_local_cache=1&expiration=1730985590&f=mp4&pu=1513c7c2&v=ali'
 
 
@@ -18,7 +18,7 @@ language = 'en-US'
 #     return wrapper
 
 
-def call_huoshan_srt(file_url):
+def call_huoshan_srt(file_url, language="en-US", words_per_line=55):
     response = requests.post(
                  '{base_url}/submit'.format(base_url=base_url),
                  params=dict(
@@ -27,7 +27,7 @@ def call_huoshan_srt(file_url):
                      use_itn='True',
                      use_capitalize='True',
                      max_lines=1,
-                     words_per_line=55,
+                     words_per_line=words_per_line,
                  ),
                  json={
                     'url': file_url,
