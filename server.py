@@ -2,6 +2,7 @@
 from flask import Flask, request, send_file
 import os
 from mdd import rtevl
+from tencent_mdd import call_tencent_zh_mdd
 import random as rd
 import pandas as pd
 import json
@@ -112,6 +113,41 @@ def send_user_behavior():
             msg = {"code": 200, 'status': 'failed', "msg": "cannot find username:{}".format(username)}
     except:
         msg = {"code": 200, 'status': 'failed', "msg": "update user info failed"}
+
+    return msg
+
+@app.route('/update_video_status', methods=["POST"])
+def update_video_status():
+    global user_info
+    try:
+        username= request.form.get('username')
+        vid = request.form.get("vid")
+        watched_video_duration = request.form.get("watched_video_duration", None)
+        video_status = request.form.get("video_status", None)
+
+        if user_info.update_video_status(username, vid, watched_video_duration, video_status) == 0:
+            msg = {"code": 200, 'status': 'success', "msg": "update video status successfully"}
+        else:
+            msg = {"code": 200, 'status': 'failed', "msg": ""}
+    except:
+        msg = {"code": 200, 'status': 'failed', "msg": "update video status successfully"}
+
+    return msg
+
+@app.route('/update_quiz_status', methods=["POST"])
+def update_quiz_status():
+    global user_info
+    try:
+        username= request.form.get('username')
+        vid = request.form.get("vid")
+        quiz_status = request.form.get("quiz_status")
+        
+        if user_info.update_quiz_status(username, vid, quiz_status) == 0:
+            msg = {"code": 200, 'status': 'success', "msg": "update quiz status successfully"}
+        else:
+            msg = {"code": 200, 'status': 'failed', "msg": ""}
+    except:
+        msg = {"code": 200, 'status': 'failed', "msg": "update quiz status successfully"}
 
     return msg
 
@@ -418,6 +454,49 @@ def call_mdd():
             score_list.append(item["score"])
 
         return {"code": 200, "msg": "success", "pron_score": score_result["pron_score"], "word_list": word_list, "score_list": score_list, "index": request.form.get("index")}
+    except:
+        return {"code": 100, "msg": "Call MDD failed"}
+    finally:
+        os.system("rm -f {}".format(filepath))
+        os.system("rm -f {}".format(outpath))
+
+@app.route("/mdd_zh", methods=["POST"])
+def call_mdd_zh():
+    """接受前端传送过来的文件"""
+    file_obj = request.files.get("audioFile")
+    username = request.files.get("username")
+    if file_obj is None:
+        # 表示没有发送文件
+        return {"code": 100, "msg": "No audio file"}
+
+    filepath = os.path.join("tmp_audio", file_obj.filename)
+    print (filepath)
+    outpath = os.path.join("tmp_audio", "format_{}.mp3".format(file_obj.filename))
+    f = open(filepath, "wb+")
+
+    data = file_obj.read()
+    f.write(data)
+    f.close()
+
+    # convert audio format with ffmpeg
+    try:
+        cmd_line = "ffmpeg -y -i {} {}".format(filepath, outpath)
+        os.system(cmd_line)
+
+        ref_text = request.form.get("subtitleText")
+        print ("ref text: {}".format(ref_text))
+        score_result = call_tencent_zh_mdd(outpath, ref_text)
+
+        word_list = list()
+        score_list = list()
+        import pdb
+        pdb.set_trace()
+        for item in score_result["Words"]:
+            word_list.append(item["Word"])
+            score_list.append(item["PronAccuracy"])
+
+        return {"code": 200, "msg": "success", "pron_score": score_result["PronAccuracy"], \
+                "flu_score": score_result["PronFluency"], "word_list": word_list, "score_list": score_list}
     except:
         return {"code": 100, "msg": "Call MDD failed"}
     finally:

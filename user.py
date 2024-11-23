@@ -87,6 +87,12 @@ class UserInfo:
 		self.dump_behavior()
 		return 0
 
+	def update_video_status(self, username, vid, watched_video_duration, video_status):
+		pass
+	
+	def update_quiz_status(self, username, vid, quiz_status):
+		pass
+	
 	def process_vip(self, username):
 		if not username in self.username_video_dict.keys():
 			return None
