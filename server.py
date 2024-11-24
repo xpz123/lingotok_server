@@ -123,14 +123,14 @@ def update_video_status():
         username= request.form.get('username')
         vid = request.form.get("vid")
         watched_video_duration = request.form.get("watched_video_duration", None)
+        is_complete = request.form.get("is_complete", None)
         video_status = request.form.get("video_status", None)
 
-        if user_info.update_video_status(username, vid, watched_video_duration, video_status) == 0:
-            msg = {"code": 200, 'status': 'success', "msg": "update video status successfully"}
-        else:
-            msg = {"code": 200, 'status': 'failed', "msg": ""}
-    except:
-        msg = {"code": 200, 'status': 'failed', "msg": "update video status successfully"}
+        user_info.update_video_status(username, vid, watched_video_duration, video_status)
+        msg = {"code": 200, 'status': 'success', "msg": "update video status successfully"}
+
+    except Exception as e:
+        msg = {"code": 200, 'status': 'failed', "msg": "update video status unsuccessfully. Reason: {}".format(str(e))}
 
     return msg
 

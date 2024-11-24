@@ -2,12 +2,28 @@ import pandas as pd
 import os
 import sys
 import json
+import pickle as pkl
+from copy import deepcopy
 
 
 class UserInfo:
 	def __init__(self):
 		self.df = pd.read_csv("user_info.csv", dtype={"password": str})
 		self.user_behavior_df = pd.read_csv("user_analysis_info.csv")
+		# 暂时使用pickle文件记录，后面考虑切换为mongodb
+		# user_video_df: {"user1": {"liked_videos": ["vid1", "vid2"], "collected_videos": ["vid1"], "video_detail_info": {"vid1": {"watched_dur": 100, "complete_count": 3}}}}
+		self.empty_video_templete = {"liked": [], "collected": [], "video_detail_info": {}}
+		if os.path.exists("user_video.pkl"):
+			self.user_video_df = pkl.load(open("user_video.pkl", "rb"))
+		else:
+			self.user_video_df = {}
+		
+		# user_learning_df: {"user1": {"speak_detail_info": {"vid1": {}}, "quiz_detail_info": {}}}
+		self.empty_learning_templete = {"speak_detail_info": {}, "quiz_detail_info": {}}
+		if os.path.exists("user_learning.pkl"):
+			self.user_learning_df = pkl.load(open("user_learning.pkl", "rb"))
+		else:
+			self.user_learning_df = {}
 
 		self.username_video_dict = dict()
 		lines = open("vip_video_id.jsonl").readlines()
@@ -27,6 +43,10 @@ class UserInfo:
 	
 	def dump_behavior(self):
 		self.user_behavior_df.to_csv("user_analysis_info.csv", index=False)
+	
+	def dump_user_video(self):
+		with open("user_video.pkl", "wb") as fw:
+			pkl.dump(self.user_video_df, fw)
 
 	def user_signup(self, username, password):
 		# status code:
@@ -88,11 +108,50 @@ class UserInfo:
 		return 0
 
 	def update_video_status(self, username, vid, watched_video_duration, video_status):
-		pass
+		if not username in self.user_video_df.keys():
+			self.user_video_df[username] = deepcopy(self.empty_video_templete)
+		
+		if video_status != None:
+			assert video_status in ["liked", "disliked", "collected", "uncollected"]
+			if video_status == "liked":
+				self.user_video_df[username]["liked"].append(vid)
+			if video_status == "disliked":
+				self.user_video_df[username]["liked"] = [item for item in self.user_video_df[username]["liked"] if item != vid]
+			if video_status == "collected":
+				self.user_video_df[username]["collected"].append(vid)
+			if video_status == "uncollected":
+				self.user_video_df[username]["collected"] = [item for item in self.user_video_df[username]["collected"] if item != vid]
+		
+		if watched_video_duration != None:
+			if vid in self.user_video_df[username]["video_detail_info"].keys():
+				self.user_video_df[username]["video_detail_info"][vid]["watched_video_duration"] += watched_video_duration
+			else:
+				self.user_video_df[username]["video_detail_info"][vid] = {"watched_video_duration": watched_video_duration, "is_complete_count": 0}
+		
+		print (self.user_video_df)
+		self.dump_user_video()
+		return 0
+
 	
-	def update_quiz_status(self, username, vid, quiz_status):
-		pass
-	
+	def update_learning_status(self, username, vid, quiz_status, speaking_status):
+		if not username in self.user_learning_df.keys():
+			self.user_learning_df[username] = deepcopy(self.empty_learning_templete)
+		
+		assert not (quiz_status == None and speaking_status == None)
+		
+		if quiz_status != None:
+			assert quiz_status in ["skip", "error", "right"]
+			if vid in self.user_learning_df[username].keys():
+				self.user_learning_df[username][vid].append(quiz_status)
+			else:
+				self.user_learning_df[username][vid] = [quiz_status]
+		
+		if speaking_status != None:
+			pass
+
+		return 1
+
+
 	def process_vip(self, username):
 		if not username in self.username_video_dict.keys():
 			return None
