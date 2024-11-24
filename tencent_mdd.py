@@ -47,7 +47,7 @@ def call_tencent_zh_mdd(filename, ref_text):
         # 通过client对象调用TransmitOralProcessWithInit方法发起请求
         resp = client.TransmitOralProcessWithInit(req)
         # 输出json格式的字符串回包
-        json_res = resp.to_json()
+        json_res = resp.to_json_string()
         print(json_res)
         return json_res
 
