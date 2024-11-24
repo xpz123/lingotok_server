@@ -484,7 +484,7 @@ def call_mdd_zh():
 
         ref_text = request.form.get("subtitleText")
         print ("ref text: {}".format(ref_text))
-        score_result = call_tencent_zh_mdd(outpath, ref_text)
+        score_result = json.loads(call_tencent_zh_mdd(outpath, ref_text))
 
         word_list = list()
         score_list = list()
