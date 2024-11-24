@@ -47,6 +47,10 @@ class UserInfo:
 	def dump_user_video(self):
 		with open("user_video.pkl", "wb") as fw:
 			pkl.dump(self.user_video_df, fw)
+	
+	def dump_user_learning(self):
+		with open("user_learning.pkl", "wb") as fw:
+			pkl.dump(self.user_learning_df, fw)
 
 	def user_signup(self, username, password):
 		# status code:
@@ -128,7 +132,7 @@ class UserInfo:
 			else:
 				self.user_video_df[username]["video_detail_info"][vid] = {"watched_video_duration": watched_video_duration, "is_complete_count": 0}
 		
-		print (self.user_video_df)
+		# print (self.user_video_df)
 		self.dump_user_video()
 		return 0
 
@@ -148,6 +152,10 @@ class UserInfo:
 		
 		if speaking_status != None:
 			pass
+
+		print (self.user_learning_df)
+
+		self.dump_user_learning()
 
 		return 1
 

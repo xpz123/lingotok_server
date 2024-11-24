@@ -142,12 +142,11 @@ def update_quiz_status():
         vid = request.form.get("vid")
         quiz_status = request.form.get("quiz_status")
         
-        if user_info.update_quiz_status(username, vid, quiz_status) == 0:
-            msg = {"code": 200, 'status': 'success', "msg": "update quiz status successfully"}
-        else:
-            msg = {"code": 200, 'status': 'failed', "msg": ""}
-    except:
-        msg = {"code": 200, 'status': 'failed', "msg": "update quiz status successfully"}
+        user_info.update_learning_status(username, vid, quiz_status, None)
+        msg = {"code": 200, 'status': 'success', "msg": "update quiz status successfully"}
+        
+    except Exception as e:
+        msg = {"code": 200, 'status': 'failed', "msg": "update quiz status unsuccessfully. Reason: {}".format(str(e))}
 
     return msg
 
