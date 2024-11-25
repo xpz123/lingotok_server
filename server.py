@@ -502,8 +502,6 @@ def call_mdd_zh():
 
         word_list = list()
         score_list = list()
-        import pdb
-        pdb.set_trace()
         for item in score_result["Words"]:
             word_list.append(item["Word"])
             score_list.append(item["PronAccuracy"])
