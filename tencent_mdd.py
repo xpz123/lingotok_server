@@ -25,8 +25,7 @@ def call_tencent_zh_mdd(filename, ref_text):
     # 请求参数赋值
     SessionId = str(uuid.uuid1())  # 使用uuid作为请求SessionId
     # 读取音频文件，
-    music_file = "tmp_audio/nihao.mp3"  # 音频文件地址
-    with open(music_file, "rb") as f:
+    with open(filename, "rb") as f:
         base64_data = base64.b64encode(f.read()).decode()  # 读取音频文件byte数据转成base64格式
 
     params = {
