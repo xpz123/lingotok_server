@@ -6,6 +6,7 @@ import json
 from video_processor import VideoProcessor, zhihu_url_convert
 from tqdm import tqdm
 from process_zhihu import load_id2url
+from vod_huoshan_util import *
 
 def cp_video_ce(df, root_dir, minid=0, maxid=100000):
     if not os.path.exists(root_dir):
@@ -274,6 +275,35 @@ def prep_zhongdong_data():
     # update_video_info_csv("zhongdong/zhihu_url_srt.csv", "zhongdong/zhihu_url_srt_level.csv")
     # merge_csv("../video_info.csv", "zhongdong/zhihu_url_srt_level.csv", "../video_metainfo.jsonl", "video_info_merged.csv")
 
+def prep_huoshan_data():
+    # video_dir = ""
+    # out_csv_file = ""
+    # traverse_and_upload(video_dir, out_csv_file)
+    video_processor = VideoProcessor()
+
+    out_csv_file = "huoshan/test_zh10.csv"
+    srt_csv_file = "huoshan/test_zh10_srt.csv"
+    srt_dir = "huoshan/test_zh10_srt"
+    df = pd.read_csv(out_csv_file)
+    dict_by_list = df.to_dict(orient="list")
+    zh_srt_list = []
+    ar_srt_list = []
+    for i in range(df.shape[0]):
+        vid = df.iloc[i]["VID"]
+        # playurl = get_vid_playurl(vid)
+        # srt_res = video_processor.generate_zhsrt(playurl, os.path.join(srt_dir, vid))
+        # if srt_res == None:
+        #     zh_srt_list.append("null")
+        #     ar_srt_list.append("null")
+        # else:
+        #     zh_srt_list.append(os.path.join(srt_dir, srt_res["zh_srt"]))
+        #     ar_srt_list.append(os.path.join(srt_dir, srt_res["ar_srt"]))
+        zh_srt_list.append(os.path.join(srt_dir, "{}_Chinese.srt".format(vid)))
+        ar_srt_list.append(os.path.join(srt_dir,"{}_Arabic.srt".format(vid)))
+    dict_by_list["zh_srt"] = zh_srt_list
+    dict_by_list["ar_srt"] = ar_srt_list
+    new_df = pd.DataFrame(dict_by_list)
+    new_df.to_csv(srt_csv_file)
 
 
 # def prep_srt_data():
@@ -295,6 +325,7 @@ def prep_zhongdong_data():
 
 
 if __name__ == '__main__':
+    prep_huoshan_data()
     # df = pd.read_csv("video_info_530.csv")
     # cp_esrt(df, "video_Finished_361_525_ori", "video_Finished_361_525_ensrt", minid=361, maxid=525)
     

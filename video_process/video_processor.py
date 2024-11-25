@@ -144,8 +144,8 @@ class VideoProcessor:
 			print (str(inst))
 		return res
 	
-	def generate_zhsrt(self, play_url, file_name, gen_ar=False):
-		res = {"er_srt": "{}_Chinese.srt".format(file_name)}
+	def generate_zhsrt(self, play_url, file_name, gen_ar=True):
+		res = {"zh_srt": "{}_Chinese.srt".format(file_name)}
 		en_srt_fw = open("{}_Chinese.srt".format(file_name), "w")
 		if gen_ar:
 			ar_srt_fw = open("{}_Arabic.srt".format(file_name), "w")
@@ -163,7 +163,7 @@ class VideoProcessor:
 				text = utterance["text"]
 				text_list.append(text)
 			if gen_ar:
-				ar_text_list = translate_text2ar(text_list, "ar")["TranslationList"]
+				ar_text_list = translate_text2ar(text_list, "ar")
 				assert len(ar_text_list) == len(text_list)
 			
 			ar_srt_content = ""
@@ -182,6 +182,7 @@ class VideoProcessor:
 				ar_srt_fw.close()
 		except Exception as inst:
 			print (str(inst))
+			return None
 		return res
 	
 	def translate_srt(self, filepath, gen_ar=True, gen_zh=False):

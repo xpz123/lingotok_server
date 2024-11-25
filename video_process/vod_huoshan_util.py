@@ -125,6 +125,7 @@ def get_vid_playurl(vid):
         else:
             print(resp.ResponseMetadata.Error)
 
+
 if __name__ == "__main__":
     upload_dir_list = []
 

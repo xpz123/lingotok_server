@@ -8,6 +8,7 @@ import pandas as pd
 import json
 from collections import defaultdict
 from user import UserInfo
+from recommender import Recommender
 from util import *
 
 video_quizd = dict()
@@ -45,6 +46,7 @@ for i in range(df.shape[0]):
             continue
         key2vid["interest_{}".format(interest.strip())].append(vid)
 
+recommender = Recommender()
 user_info = UserInfo()
 
 real_idx=0
@@ -417,6 +419,18 @@ def get_video_with_username():
     
 
     msg = {"code": 200, "msg": "success", "video_list": res_list}
+    return msg
+
+
+@app.route('/get_huoshan_video_with_username', methods=["POST"])
+def get_huoshan_video_with_username():
+    global recommender
+    try:
+        username = request.form.get("username")
+        video_list = recommender.get_video_with_username(username)
+        msg = {"code": 200, "msg": "success", "video_list": video_list}
+    except Exception as e:
+        msg = {"code": 100, "msg": "failed", "reason": str(e)}
     return msg
 
 
