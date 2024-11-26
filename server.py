@@ -502,11 +502,14 @@ def call_mdd_zh():
 
         word_list = list()
         score_list = list()
+        pron_score = 0
         for item in score_result["Words"]:
             word_list.append(item["Word"])
             score_list.append(item["PronAccuracy"])
-
-        return {"code": 200, "msg": "success", "pron_score": score_result["PronAccuracy"], \
+            pron_score += max(0, item["PronAccuracy"])
+        
+        avg_pron_score = pron_score / len(score_list)
+        return {"code": 200, "msg": "success", "pron_score": avg_pron_score, \
                 "flu_score": score_result["PronFluency"], "word_list": word_list, "score_list": score_list}
     except:
         return {"code": 100, "msg": "Call MDD failed"}

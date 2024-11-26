@@ -37,7 +37,7 @@ def call_tencent_zh_mdd(filename, ref_text):
         "SessionId": SessionId,
         "RefText": "{::cmd{F_TDET=true}}" + ref_text,
         "WorkMode": 1,
-        "EvalMode": 1,
+        "EvalMode": 2,
         "ServerType": 1,
         "ScoreCoeff": 1.0
     }
