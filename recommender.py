@@ -32,7 +32,7 @@ class Recommender:
             video_info = dict()
             video_info['vid'] = self.video_info['VID'][i]
             video_info['title'] = self.video_info['title'][i]
-            video_info['srt_name'] = os.path.join("huoshan/rt_dir", self.video_info['zh_srt'][i].split("\\")[-1]).replace("/", "\\")
+            video_info['srt_name'] = os.path.join("huoshan/srt_dir", self.video_info['zh_srt'][i].split("\\")[-1]).replace("/", "\\")
             video_info['ar_srt_name'] = os.path.join("huoshan/srt_dir", self.video_info['ar_srt'][i].split("\\")[-1]).replace("/", "\\")
             video_info['en_srt_name'] = os.path.join("huoshan/srt_dir", self.video_info['en_srt'][i].split("\\")[-1]).replace("/", "\\")
             video_info['play_url'] = get_vid_playurl(video_info['vid'])
