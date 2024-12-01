@@ -2,6 +2,7 @@ import pandas as pd
 import json
 import os
 from video_process.vod_huoshan_util import get_vid_playurl
+from copy import deepcopy
 
 
 class Recommender:
@@ -14,7 +15,7 @@ class Recommender:
         for l in lines:
             data = json.loads(l.strip())
             vid = data["vid"]
-            self.video_quizd[vid] = {"question": data["question"], "options": data["options"], "answer": data["answer"].strip().replace(".", "")}
+            self.video_quizd[vid] = deepcopy(data)
             if "explanation" in data.keys():
                 self.video_quizd[vid]["explanation"] = data["explanation"]
         self.username_idx = dict()
@@ -36,7 +37,7 @@ class Recommender:
             video_info['ar_srt_name'] = os.path.join("huoshan/srt_dir", self.video_info['ar_srt'][i].split("\\")[-1]).replace("/", "\\")
             video_info['en_srt_name'] = os.path.join("huoshan/srt_dir", self.video_info['en_srt'][i].split("\\")[-1]).replace("/", "\\")
             video_info['play_url'] = get_vid_playurl(video_info['vid'])
-            video_info.update(test_question)
+            # video_info.update(test_question)
             if video_info['vid'] in self.video_quizd:
                 video_info.update(self.video_quizd[video_info['vid']])
             video_list.append(video_info)
