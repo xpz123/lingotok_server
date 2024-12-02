@@ -3,12 +3,15 @@ import json
 import os
 from video_process.vod_huoshan_util import get_vid_playurl
 from copy import deepcopy
+import random as rd
 
 
 class Recommender:
     def __init__(self):
         self.df = pd.read_csv("video_info_huoshan.csv")
         self.video_info = self.df.to_dict(orient="list")
+        self.info_idx = [i for i in range(len(self.video_info['VID']))]
+        rd.shuffle(self.info_idx)
         self.keys = list(self.video_info.keys())
         self.video_quizd = dict()
         lines = open("video_metainfo.jsonl").readlines()
@@ -29,7 +32,7 @@ class Recommender:
         video_list = list()
         test_question = {"question": "这是一个测试的题目？", "options": ["A. 选项1", "B. 选项2", "C. 选线3", "D. 选项4"], "answer": "C", "ar_question": "هل هذا سؤال اختبار؟", "ar_options": ["A. خيارات 1", "B. خيارات 2", "C. خيارات 3", "D. خيارات 4"]}
         for idx in range(self.username_idx[username], self.username_idx[username]+self.recommended_video_count):
-            i = idx % len(self.video_info['VID'])
+            i = self.info_idx[idx % len(self.video_info['VID'])]
             video_info = dict()
             video_info['vid'] = self.video_info['VID'][i]
             video_info['title'] = self.video_info['title'][i]
