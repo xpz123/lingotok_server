@@ -9,6 +9,11 @@ import random as rd
 class Recommender:
     def __init__(self):
         self.df = pd.read_csv("video_info_huoshan.csv")
+
+        # 0.3 is the threshold for audio_ratio
+        self.audio_ratio_threshold = 0.3
+        self.df = self.df[self.df["audio_ratio"] > self.audio_ratio_threshold]
+
         self.video_info = self.df.to_dict(orient="list")
         self.info_idx = [i for i in range(len(self.video_info['VID']))]
         rd.shuffle(self.info_idx)
