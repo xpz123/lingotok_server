@@ -37,21 +37,24 @@ class Recommender:
         video_list = list()
         test_question = {"question": "这是一个测试的题目？", "options": ["A. 选项1", "B. 选项2", "C. 选线3", "D. 选项4"], "answer": "C", "ar_question": "هل هذا سؤال اختبار؟", "ar_options": ["A. خيارات 1", "B. خيارات 2", "C. خيارات 3", "D. خيارات 4"]}
         for idx in range(self.username_idx[username], self.username_idx[username]+self.recommended_video_count):
-            i = self.info_idx[idx % len(self.video_info['VID'])]
-            video_info = dict()
-            video_info['vid'] = self.video_info['VID'][i]
-            video_info['title'] = self.video_info['title'][i]
-            video_info['srt_name'] = os.path.join("huoshan/srt_dir", self.video_info['zh_srt'][i].split("\\")[-1]).replace("/", "\\")
-            video_info['ar_srt_name'] = os.path.join("huoshan/srt_dir", self.video_info['ar_srt'][i].split("\\")[-1]).replace("/", "\\")
-            video_info['en_srt_name'] = os.path.join("huoshan/srt_dir", self.video_info['en_srt'][i].split("\\")[-1]).replace("/", "\\")
-            video_info['play_url'] = get_vid_playurl(video_info['vid'])
-            # video_info.update(test_question)
-            if video_info['vid'] in self.video_quizd:
-                video_info.update(self.video_quizd[video_info['vid']])
-                video_info["question"] = "下面是刚刚视频中出现过的句子，请根据视频内容，选择最合适的词填入空格处：\n{}".format(video_info["question"])
-                video_info["ar_question"] = "هذه جملة ظهرت في الفيديو الذي شاهدته للتو، يرجى اختيار الكلمة الأنسب لتعبئة الفراغ:\n{}".format(video_info["ar_question"])
-                video_info["en_question"] = "The following sentence appeared in the video you just watched, please choose the most suitable word to fill in the blank:\n{}".format(video_info["en_question"])
-            video_list.append(video_info)
+            try:
+                i = self.info_idx[idx % len(self.video_info['VID'])]
+                video_info = dict()
+                video_info['vid'] = self.video_info['VID'][i]
+                video_info['title'] = self.video_info['title'][i]
+                video_info['srt_name'] = os.path.join("huoshan/srt_dir", self.video_info['zh_srt'][i].split("\\")[-1]).replace("/", "\\")
+                video_info['ar_srt_name'] = os.path.join("huoshan/srt_dir", self.video_info['ar_srt'][i].split("\\")[-1]).replace("/", "\\")
+                video_info['en_srt_name'] = os.path.join("huoshan/srt_dir", self.video_info['en_srt'][i].split("\\")[-1]).replace("/", "\\")
+                video_info['play_url'] = get_vid_playurl(video_info['vid'])
+                # video_info.update(test_question)
+                if video_info['vid'] in self.video_quizd:
+                    video_info.update(self.video_quizd[video_info['vid']])
+                    video_info["question"] = "下面是刚刚视频中出现过的句子，请根据视频内容，选择最合适的词填入空格处：\n{}".format(video_info["question"])
+                    video_info["ar_question"] = "هذه جملة ظهرت في الفيديو الذي شاهدته للتو، يرجى اختيار الكلمة الأنسب لتعبئة الفراغ:\n{}".format(video_info["ar_question"])
+                    video_info["en_question"] = "The following sentence appeared in the video you just watched, please choose the most suitable word to fill in the blank:\n{}".format(video_info["en_question"])
+                video_list.append(video_info)
+            except:
+                print ("error vid : {}".format(self.video_info['VID'][i]))
         self.username_idx[username] += self.recommended_video_count
         return video_list
 
