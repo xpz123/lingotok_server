@@ -48,6 +48,9 @@ class Recommender:
             # video_info.update(test_question)
             if video_info['vid'] in self.video_quizd:
                 video_info.update(self.video_quizd[video_info['vid']])
+                video_info["question"] = "下面是刚刚视频中出现过的句子，请根据视频内容，选择最合适的词填入空格处：\n{}".format(video_info["question"])
+                video_info["ar_question"] = "هذه جملة ظهرت في الفيديو الذي شاهدته للتو، يرجى اختيار الكلمة الأنسب لتعبئة الفراغ:\n{}".format(video_info["ar_question"])
+                video_info["en_question"] = "The following sentence appeared in the video you just watched, please choose the most suitable word to fill in the blank:\n{}".format(video_info["en_question"])
             video_list.append(video_info)
         self.username_idx[username] += self.recommended_video_count
         return video_list
