@@ -66,7 +66,7 @@ class UserInfo:
 			self.dump_info()
 		return 0
 
-	def update_user_info(self, username, age=None, gender=None, level=None, interests=None):
+	def update_user_info(self, username, age=None, gender=None, level=None, interests=None, goal=None):
 		# status code:
 		## 0: success
 		## 1: username cannot find
@@ -74,24 +74,28 @@ class UserInfo:
 		if user.shape[0] == 0:
 			new_user = {"username": username}
 			if not age == None:
-				new_user["age"] = int(age)
+				new_user["age"] = age
 			if not gender == None:
 				new_user["gender"] = gender
 			if not level == None:
 				new_user["level"] = level
 			if not interests == None:
 				new_user["interests"] = interests
+			if not goal == None:
+				new_user["goal"] = goal
 			self.df = pd.concat([self.df, pd.DataFrame(new_user, index=[0])], ignore_index=True)
 			self.dump_info()
 			return 0
 		if age != None:
-			self.df.loc[(self.df["username"] == username), "age"] = int(age)
+			self.df.loc[(self.df["username"] == username), "age"] = age
 		if gender != None:
 			self.df.loc[(self.df["username"] == username), "gender"] = gender
 		if level != None:
 			self.df.loc[(self.df["username"] == username), "level"] = level
 		if interests != None:
 			self.df.loc[(self.df["username"] == username), "interests"] = interests
+		if goal != None:
+			self.df.loc[(self.df["username"] == username), "goal"] = goal
 		self.dump_info()
 		return 0
 	

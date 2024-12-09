@@ -85,7 +85,8 @@ def send_user_info():
         level = request.form.get('level')
         gender = request.form.get('gender')
         interests = request.form.get('interests')
-        if user_info.update_user_info(username, age=age, gender=gender, level=level, interests=interests) == 0:
+        goal = request.form.get('goal')
+        if user_info.update_user_info(username, age=age, gender=gender, level=level, interests=interests, goal=goal) == 0:
             msg = {"code": 200, 'status': 'success', "msg": "update user info successfully"}
         else:
             msg = {"code": 200, 'status': 'failed', "msg": "cannot find username:{}".format(username)}
