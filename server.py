@@ -123,10 +123,14 @@ def update_video_status():
     global user_info
     try:
         username= request.form.get('username')
+        print (username)
         vid = request.form.get("vid")
+        print (vid)
         watched_video_duration = request.form.get("watched_video_duration", None)
+        print ("watched dur {}".format(watched_video_duration))
         is_complete = request.form.get("is_complete", None)
         video_status = request.form.get("video_status", None)
+        print ("status {}".format(video_status))
 
         user_info.update_video_status(username, vid, watched_video_duration, video_status)
         msg = {"code": 200, 'status': 'success', "msg": "update video status successfully"}
@@ -477,7 +481,9 @@ def call_mdd():
 def call_mdd_zh():
     """接受前端传送过来的文件"""
     file_obj = request.files.get("audioFile")
-    username = request.files.get("username")
+    username = request.form.get("username")
+    vid = request.form.get("vid")
+    print ("username: {}, vid: {}".format(username, vid))
     if file_obj is None:
         # 表示没有发送文件
         return {"code": 100, "msg": "No audio file"}

@@ -153,7 +153,7 @@ class UserInfo:
 		if speaking_status != None:
 			pass
 
-		print (self.user_learning_df)
+		#print (self.user_learning_df)
 
 		self.dump_user_learning()
 
