@@ -155,8 +155,10 @@ class UserInfo:
 				self.user_learning_df[username][vid] = [quiz_status]
 		
 		if speaking_status != None:
-			pass
-
+			if not vid in self.user_learning_df[username]["speak_detail_info"].keys():
+				self.user_learning_df[username]["speak_detail_info"][vid] = [speaking_status]
+			else:
+				self.user_learning_df[username]["speak_detail_info"][vid].append(speaking_status)
 		#print (self.user_learning_df)
 
 		self.dump_user_learning()
