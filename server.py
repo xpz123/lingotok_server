@@ -480,6 +480,7 @@ def call_mdd():
 
 @app.route("/mdd_zh", methods=["POST"])
 def call_mdd_zh():
+    global user_info
     """接受前端传送过来的文件"""
     file_obj = request.files.get("audioFile")
     username = request.form.get("username")
@@ -516,6 +517,8 @@ def call_mdd_zh():
             pron_score += max(0, item["PronAccuracy"])
         
         avg_pron_score = pron_score / len(score_list)
+        speak_status = [ref_text, avg_pron_score]
+        user_info.update_learning_status(username, vid, None, speak_status)
         return {"code": 200, "msg": "success", "pron_score": avg_pron_score, \
                 "flu_score": score_result["PronFluency"], "word_list": word_list, "score_list": score_list}
     except:
