@@ -45,6 +45,7 @@ class Recommender:
                 video_info['srt_name'] = os.path.join("huoshan/srt_dir", self.video_info['zh_srt'][i].split("\\")[-1]).replace("/", "\\")
                 video_info['ar_srt_name'] = os.path.join("huoshan/srt_dir", self.video_info['ar_srt'][i].split("\\")[-1]).replace("/", "\\")
                 video_info['en_srt_name'] = os.path.join("huoshan/srt_dir", self.video_info['en_srt'][i].split("\\")[-1]).replace("/", "\\")
+                video_info['pinyin_srt_name'] = os.path.join("huoshan/srt_dir", self.video_info['pinyin_srt'][i].split("\\")[-1]).replace("/", "\\")
                 video_info['play_url'] = get_vid_playurl(video_info['vid'])
                 # video_info.update(test_question)
                 if video_info['vid'] in self.video_quizd:
