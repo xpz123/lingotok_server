@@ -51,10 +51,8 @@ def upload_media(file_path, space_name="lingotok", tag="", desc=""):
             print(resp.ResponseMetadata.RequestId)
             return None
 
-def traverse_and_upload(root_dir, output_csv):
+def traverse_and_upload(root_dir, output_csv, compress_ratio=1):
     data = []
-    import pdb
-    pdb.set_trace()
     with open(output_csv, 'w', newline='', encoding='utf-8') as csvfile:
         csvwriter = csv.writer(csvfile)
         csvwriter.writerow(['FileName', 'VID', 'DirName', "title", "vod_filename"])
@@ -69,7 +67,7 @@ def traverse_and_upload(root_dir, output_csv):
                         vid = media_info["vid"]
                         title = media_info["title"]
                         filename = media_info["filename"]
-                        file_name_without_ext = os.path.splitext(filename)[0]
+                        file_name_without_ext = file_path
                         csvwriter.writerow([file_name_without_ext, vid, dirname, title, filename])
                         # data.append([file_name_without_ext, vid, dirname, title, filename])
 
@@ -127,7 +125,8 @@ def get_vid_playurl(vid):
 
 
 if __name__ == "__main__":
-    upload_dir_list = []
+    # pass
+    # upload_dir_list = []
 
     print (get_vid_playurl("v0d32eg10064csvcfn2ljhtd29dgu3rg"))
 

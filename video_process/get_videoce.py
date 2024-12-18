@@ -3,10 +3,11 @@ import sys
 import pandas as pd
 import shutil
 import json
-from video_processor import VideoProcessor, zhihu_url_convert
+from video_processor import VideoProcessor, zhihu_url_convert, translate_quiz_metainfo
 from tqdm import tqdm
 from process_zhihu import load_id2url
 from vod_huoshan_util import *
+from content_tagger import tag_video_info_csv_audio_ratio
 
 def cp_video_ce(df, root_dir, minid=0, maxid=100000):
     if not os.path.exists(root_dir):
@@ -139,6 +140,28 @@ def generate_quiz(ensrt_dir, metainfo_file):
                 print (str(e))
     fw.close()
 
+def generate_quiz_zh(ensrt_dir, metainfo_file):
+    fw = open(metainfo_file, "w", encoding="utf-8")
+    video_processor = VideoProcessor()
+    for root, dirs, files in os.walk(ensrt_dir):
+        for f in tqdm(files):
+            if f.find("Chinese.srt") == -1:
+                continue
+            try:
+                zhsrt_filename = os.path.join(root, f.replace("\\", "/"))
+                vid = f.split("_")[0]
+                video_processor.load_srt(zhsrt_filename)
+                quiz = video_processor.generate_quiz_zh_tiankong(zhsrt_filename)
+                if quiz == None:
+                    continue
+                os.system("sleep 1")
+                quiz["vid"] = vid
+                # print (quiz)
+                fw.write(json.dumps(quiz, ensure_ascii=False) + "\n")
+            except Exception as e:
+                print (str(e))
+    fw.close()
+
 def merge_csv(online_csvfile, new_csvfile, metainfo_file, merged_csvfile):
     lines = open(metainfo_file).readlines()
     vid_set = set()
@@ -170,6 +193,51 @@ def merge_csv(online_csvfile, new_csvfile, metainfo_file, merged_csvfile):
 
 
     df_online.to_csv(merged_csvfile, index=False)
+
+def merge_csv_huoshan(online_csvfile, new_csvfile, metainfo_file):
+    lines = open(metainfo_file).readlines()
+    vid_set = set()
+    for l in lines:
+        vid_set.add(json.loads(l.strip())["vid"])
+    df_online = pd.read_csv(online_csvfile)
+    for i in range(df_online.shape[0]):
+         vid_set.add(str(df_online.iloc[i]["VID"]))
+        
+    df_new = pd.read_csv(new_csvfile)
+    vid_list = list()
+    for i in range(df_new.shape[0]):
+        try:
+            vid = df_new.iloc[i]["VID"]
+            en_srt = df_new.iloc[i]["en_srt"].replace("/", "\\")
+            ar_srt = df_new.iloc[i]["ar_srt"].replace("/", "\\")
+            zh_srt = df_new.iloc[i]["zh_srt"].replace("/", "\\")
+            # age = df_new.iloc[i].get("age", "k12")
+            # gender = df_new.iloc[i].get("gender", "male")
+            # interests = df_new.iloc[i].get("interests", "Technology")
+            # level = df_new.iloc[i]["level"]
+            level = "HSK3"
+            if not str(vid) in vid_set:
+                continue
+            tmp = df_online[(df_online["VID"] == vid)]
+            if tmp.shape[0] > 0:
+                continue
+
+            Filename = df_new.iloc[i]["FileName"]
+            title = df_new.iloc[i]["title"]
+            vod_filename = df_new.iloc[i]["vod_filename"]
+
+            video_info = {"VID": str(vid), "en_srt": en_srt, "level": level, "ar_srt": ar_srt, "zh_srt": zh_srt, "FileName": Filename, "title": title, "vod_filename": vod_filename}
+            df_online = pd.concat([df_online, pd.DataFrame(video_info, index=[0])], ignore_index=True)
+            vid_list.append(str(vid))
+        except Exception as e:
+            print (df_new.iloc[i]["VID"])
+            print (str(e))
+    print (vid_list)
+
+
+    df_online.to_csv(online_csvfile, index=False)
+
+
 
 def prep_tangzong_data():
     # df = pd.read_excel("tangzong.xlsx")
@@ -226,7 +294,7 @@ def prep_tangzong_data():
     fw = open("../vip_video_id.jsonl", "w")
     fw.write(json.dumps(vipd))
 
-    
+
 def prep_zhongdong_data():
     pass
     # df = pd.read_csv("zhongdong/zhihu_ori_0_20.csv")
@@ -276,34 +344,80 @@ def prep_zhongdong_data():
     # merge_csv("../video_info.csv", "zhongdong/zhihu_url_srt_level.csv", "../video_metainfo.jsonl", "video_info_merged.csv")
 
 def prep_huoshan_data():
-    # video_dir = ""
-    # out_csv_file = ""
-    # traverse_and_upload(video_dir, out_csv_file)
+    ### 已经完成的
+    # video_dir = "huoshan/短剧/8233-被偷走爱的那十年（43集）"
+    # video_dir = "huoshan/家有儿女"
+    # video_dir = "huoshan/舌尖"
+    # video_dir = "huoshan/航拍中国"
+    # video_dir = "huoshan/琅琊榜"
+    # video_dir = "huoshan/山海情"
+    # video_dir = "huoshan/武林外传1"
+    # video_dir = "huoshan/武林外传2"
+    # video_dir = "huoshan/短剧/8152-来自星星的4个哥哥都宠我（100集）"
+    # video_dir = "huoshan/短剧/8150-叮！我的首富老公已上线（82集）"
+    # video_dir = "huoshan/短剧/于龙怕热"
+
+    ###正在进行中
+    video_dir = "huoshan/萌宠/爱撒娇的淘气喵"
+    video_dir = "huoshan/萌宠/丢那猩动物园"
+    video_dir = "huoshan/萌宠/苏苏家的三小只"
+    video_dir = "huoshan/萌宠/永智与志胜"
+    video_dir = "huoshan/其他/科普星球"
+    video_dir = "huoshan/其他/十六不是石榴"
+    video_dir = "/Users/tal/work/lingtok_server/video_process/huoshan/美妆/阿min学姐"
+    video_dir = "/Users/tal/work/lingtok_server/video_process/huoshan/萌宠/开饭了大熊猫-part"
+    video_dir = "/Users/tal/work/lingtok_server/video_process/huoshan/美妆/今天要不要去吃烧烤"
+    video_dir = "/Users/tal/work/lingtok_server/video_process/huoshan/其他/清风乍起"
+
+    ### 未完成的
+
+    # video_dir = "huoshan/短剧/8244-被弄丢的你（86集）"
+    # video_dir = "huoshan/武林外传"
+    
+
+    srt_dir = os.path.join(video_dir, "srt_dir")
+    out_csv_file = os.path.join(video_dir, "video_info_test.csv")
+    srt_csv_file = os.path.join(video_dir, "video_info_test_srt.csv")
+
     video_processor = VideoProcessor()
 
-    out_csv_file = "huoshan/test_zh10.csv"
-    srt_csv_file = "huoshan/test_zh10_srt.csv"
-    srt_dir = "huoshan/test_zh10_srt"
-    df = pd.read_csv(out_csv_file)
-    dict_by_list = df.to_dict(orient="list")
-    zh_srt_list = []
-    ar_srt_list = []
-    for i in range(df.shape[0]):
-        vid = df.iloc[i]["VID"]
-        # playurl = get_vid_playurl(vid)
-        # srt_res = video_processor.generate_zhsrt(playurl, os.path.join(srt_dir, vid))
-        # if srt_res == None:
-        #     zh_srt_list.append("null")
-        #     ar_srt_list.append("null")
-        # else:
-        #     zh_srt_list.append(os.path.join(srt_dir, srt_res["zh_srt"]))
-        #     ar_srt_list.append(os.path.join(srt_dir, srt_res["ar_srt"]))
-        zh_srt_list.append(os.path.join(srt_dir, "{}_Chinese.srt".format(vid)))
-        ar_srt_list.append(os.path.join(srt_dir,"{}_Arabic.srt".format(vid)))
-    dict_by_list["zh_srt"] = zh_srt_list
-    dict_by_list["ar_srt"] = ar_srt_list
-    new_df = pd.DataFrame(dict_by_list)
-    new_df.to_csv(srt_csv_file)
+    traverse_and_upload(video_dir, out_csv_file)
+    
+    # if not os.path.exists(srt_dir):
+    #     os.makedirs(srt_dir)
+
+    # df = pd.read_csv(out_csv_file)
+    # dict_by_list = df.to_dict(orient="list")
+    # zh_srt_list = []
+    # ar_srt_list = []
+    # en_srt_list = []
+    # for i in tqdm(range(df.shape[0])):
+    #     vid = df.iloc[i]["VID"]
+    #     video_path = df.iloc[i]["FileName"].replace(" ", "\\ ")
+    #     # playurl = get_vid_playurl(vid)
+    #     os.system("/opt/homebrew/Cellar/ffmpeg/7.1_3/bin/ffmpeg -y -loglevel error -i {} -ac 1 -ar 16000 -f wav test.wav".format(video_path))
+    #     srt_res = video_processor.generate_zhsrt("",  os.path.join(srt_dir, vid), audio_path="test.wav", gen_ar=True)
+    #     os.system("rm test.wav")
+    #     if srt_res == None:
+    #         zh_srt_list.append("null")
+    #         ar_srt_list.append("null")
+    #         en_srt_list.append("null")
+    #     else:
+    #         zh_srt_list.append(srt_res["zh_srt"])
+    #         ar_srt_list.append(srt_res["ar_srt"])
+    #         en_srt_list.append(srt_res["en_srt"])
+    # dict_by_list["zh_srt"] = zh_srt_list
+    # dict_by_list["ar_srt"] = ar_srt_list
+    # dict_by_list["en_srt"] = en_srt_list
+    # new_df = pd.DataFrame(dict_by_list)
+    # new_df.to_csv(srt_csv_file, index=False)
+
+    # generate_quiz_zh(srt_dir, os.path.join(video_dir, "video_metainfo_zhonly.jsonl"))
+    # merge_csv_huoshan("video_info_huoshan.csv", srt_csv_file, os.path.join(video_dir, "video_metainfo_zhonly.jsonl"))
+    # os.system("scp  {}/*.srt root@54.248.147.60:/dev/data/lingotok_server/huoshan/srt_dir".format(srt_dir))
+    # translate_quiz_metainfo(os.path.join(video_dir, "video_metainfo_zhonly.jsonl"), os.path.join(video_dir, "video_metainfo.jsonl"))
+    # os.system("cat {} >> ../video_metainfo.jsonl".format(os.path.join(video_dir, "video_metainfo.jsonl")))
+    # tag_video_info_csv_audio_ratio("video_info_huoshan.csv", "../video_info_huoshan.csv")
 
 
 # def prep_srt_data():
