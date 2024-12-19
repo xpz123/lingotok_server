@@ -10,6 +10,10 @@ class Recommender:
     def __init__(self):
         self.df = pd.read_csv("video_info_huoshan.csv")
 
+        self.df_pnu = pd.read_csv("DR_1.csv")
+        self.video_info_pnu = self.df_pnu.to_dict(orient="list")
+        self.pnu_uuid_list = ["0QdJdJH6PJbdQyioviv0Q4i9Ac73"]
+
         # 0.3 is the threshold for audio_ratio
         self.audio_ratio_threshold = 0.3
         self.df = self.df[self.df["audio_ratio"] > self.audio_ratio_threshold]
@@ -28,10 +32,37 @@ class Recommender:
                 self.video_quizd[vid]["explanation"] = data["explanation"]
         self.username_idx = dict()
         self.recommended_video_count = 5
+
+
+    def get_pnu_video_with_username(self, username):
+        if not username in self.username_idx.keys():
+            self.username_idx[username] = 0
+        video_list = list()
+        for i in range(self.username_idx[username], self.username_idx[username]+self.recommended_video_count):
+            try:
+                video_info = dict()
+                video_info['vid'] = self.video_info_pnu['vid'][i]
+                video_info['title'] = self.video_info_pnu['FileName'][i]
+                video_info['srt_name'] = os.path.join("huoshan/srt_dir", self.video_info_pnu['zh_srt'][i].split("/")[-1]).replace("/", "\\")
+                video_info['ar_srt_name'] = os.path.join("huoshan/srt_dir", self.video_info_pnu['ar_srt'][i].split("/")[-1]).replace("/", "\\")
+                video_info['en_srt_name'] = os.path.join("huoshan/srt_dir", self.video_info_pnu['en_srt'][i].split("/")[-1]).replace("/", "\\")
+                video_info['pinyin_srt_name'] = os.path.join("huoshan/srt_dir", self.video_info_pnu['pinyin_srt'][i].split("/")[-1]).replace("/", "\\")
+                video_info['play_url'] = get_vid_playurl(video_info['vid'])
+                # video_info.update(test_question)
+                if video_info['vid'] in self.video_quizd:
+                    video_info.update(self.video_quizd[video_info['vid']])
+                    video_info["question"] = "下面是刚刚视频中出现过的句子，请根据视频内容，选择最合适的词填入空格处：\n{}".format(video_info["question"])
+                    video_info["ar_question"] = "هذه جملة ظهرت في الفيديو الذي شاهدته للتو، يرجى اختيار الكلمة الأنسب لتعبئة الفراغ:\n{}".format(video_info["ar_question"])
+                    video_info["en_question"] = "The following sentence appeared in the video you just watched, please choose the most suitable word to fill in the blank:\n{}".format(video_info["en_question"])
+                video_list.append(video_info)
+            except:
+                print ("error vid : {}".format(self.video_info_pnu['vid'][i]))
+        self.username_idx[username] += self.recommended_video_count
+        return video_list    
         
-        
-    
     def get_video_with_username(self, username):
+        if username in self.pnu_uuid_list:
+            return self.get_pnu_video_with_username(username)
         if not username in self.username_idx.keys():
             self.username_idx[username] = 0
         video_list = list()
