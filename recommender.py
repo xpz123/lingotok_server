@@ -31,14 +31,14 @@ class Recommender:
             if "explanation" in data.keys():
                 self.video_quizd[vid]["explanation"] = data["explanation"]
         self.username_idx = dict()
-        self.recommended_video_count = 5
+        # self.recommended_video_count = 5
 
 
-    def get_pnu_video_with_username(self, username):
+    def get_pnu_video_with_username(self, username, recommended_video_count=5):
         if not username in self.username_idx.keys():
             self.username_idx[username] = 0
         video_list = list()
-        for i in range(self.username_idx[username], self.username_idx[username]+self.recommended_video_count):
+        for i in range(self.username_idx[username], self.username_idx[username]+recommended_video_count):
             try:
                 video_info = dict()
                 video_info['vid'] = self.video_info_pnu['vid'][i]
@@ -57,17 +57,17 @@ class Recommender:
                 video_list.append(video_info)
             except:
                 print ("error vid : {}".format(self.video_info_pnu['vid'][i]))
-        self.username_idx[username] += self.recommended_video_count
+        self.username_idx[username] += recommended_video_count
         return video_list    
         
-    def get_video_with_username(self, username):
+    def get_video_with_username(self, username, recommended_video_count=5):
         if username in self.pnu_uuid_list:
             return self.get_pnu_video_with_username(username)
         if not username in self.username_idx.keys():
             self.username_idx[username] = 0
         video_list = list()
         test_question = {"question": "这是一个测试的题目？", "options": ["A. 选项1", "B. 选项2", "C. 选线3", "D. 选项4"], "answer": "C", "ar_question": "هل هذا سؤال اختبار؟", "ar_options": ["A. خيارات 1", "B. خيارات 2", "C. خيارات 3", "D. خيارات 4"]}
-        for idx in range(self.username_idx[username], self.username_idx[username]+self.recommended_video_count):
+        for idx in range(self.username_idx[username], self.username_idx[username]+recommended_video_count):
             try:
                 i = self.info_idx[idx % len(self.video_info['VID'])]
                 video_info = dict()
@@ -87,7 +87,7 @@ class Recommender:
                 video_list.append(video_info)
             except:
                 print ("error vid : {}".format(self.video_info['VID'][i]))
-        self.username_idx[username] += self.recommended_video_count
+        self.username_idx[username] += recommended_video_count
         return video_list
 
 if __name__ == "__main__":
