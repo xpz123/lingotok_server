@@ -38,9 +38,10 @@ class Recommender:
         if not username in self.username_idx.keys():
             self.username_idx[username] = 0
         video_list = list()
-        for i in range(self.username_idx[username], self.username_idx[username]+recommended_video_count):
+        for idx in range(self.username_idx[username], self.username_idx[username]+recommended_video_count):
             try:
                 video_info = dict()
+                i = idx % len(self.video_info_pnu['vid'])
                 video_info['vid'] = self.video_info_pnu['vid'][i]
                 video_info['title'] = self.video_info_pnu['FileName'][i]
                 video_info['srt_name'] = os.path.join("huoshan/srt_dir", self.video_info_pnu['zh_srt'][i].split("/")[-1]).replace("/", "\\")
