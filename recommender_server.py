@@ -5,8 +5,10 @@ recommender = Recommender()
 app = Flask(__name__)
 @app.route('/recommend_video', methods=["POST"])
 def recommend_video():
-    uid = request.form.get("uid")
-    size = int(request.form.get("size"))
+    
+    input_data = request.get_json()
+    uid = input_data["user_id"]
+    size = input_data["size"]
     try:
         video_info_list = recommender.get_video_with_username(uid, recommended_video_count=size)
         video_id_list = [video_info['vid'] for video_info in video_info_list]
