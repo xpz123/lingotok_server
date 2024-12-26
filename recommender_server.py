@@ -11,7 +11,7 @@ def recommend_video():
     size = input_data["size"]
     try:
         video_info_list = recommender.get_video_with_username(uid, recommended_video_count=size)
-        video_id_list = [video_info['vid'] for video_info in video_info_list]
+        video_id_list = [video_info['video_id'] for video_info in video_info_list]
         return {"video_id_list": video_id_list, "code": 200}
     except Exception as e:
         print (e)

@@ -8,7 +8,9 @@ import random as rd
 
 class Recommender:
     def __init__(self):
-        self.df = pd.read_csv("video_info_huoshan.csv")
+        # self.df = pd.read_csv("video_info_huoshan.csv")
+        df_ori = pd.read_csv("video_info_hw_created.csv")
+        self.df = df_ori.dropna(subset=["video_id"])
 
         self.df_pnu = pd.read_csv("DR_1.csv")
         self.video_info_pnu = self.df_pnu.to_dict(orient="list")
@@ -79,6 +81,7 @@ class Recommender:
                 video_info['en_srt_name'] = os.path.join("huoshan/srt_dir", self.video_info['en_srt'][i].split("\\")[-1]).replace("/", "\\")
                 video_info['pinyin_srt_name'] = os.path.join("huoshan/srt_dir", self.video_info['pinyin_srt'][i].split("\\")[-1]).replace("/", "\\")
                 video_info['play_url'] = get_vid_playurl(video_info['vid'])
+                video_info["video_id"] = self.video_info['video_id'][i]
                 # video_info.update(test_question)
                 if video_info['vid'] in self.video_quizd:
                     video_info.update(self.video_quizd[video_info['vid']])
