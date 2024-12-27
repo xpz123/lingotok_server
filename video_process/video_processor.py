@@ -17,6 +17,21 @@ from llm_util import call_doubao_pro_128k, call_gpt4o
 import random as rd
 import pandas as pd
 from pypinyin import pinyin
+import cv2
+import math
+os.environ["IMAGEIO_FFMPEG_EXE"] = "/opt/homebrew/Cellar/ffmpeg/7.1_3/bin/ffmpeg"
+from moviepy.editor import VideoFileClip
+from copy import deepcopy
+
+def get_video_resolution(video_file):
+	cap = cv2.VideoCapture(video_file)
+	assert cap.isOpened()
+
+	width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+	height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+	cap.release()
+	
+	return width, height
 
 def zhihu_url_convert(page_url):
 	prefix = "https://lens.zhihu.com/api/v4/videos/"
@@ -113,6 +128,71 @@ def add_pinyin_srt(video_info_file, new_video_info_file):
 		df.at[i, "pinyin_srt"] = pinyin_srt.replace("/", "\\")
 		os.system("scp  {} root@54.248.147.60:/dev/data/lingotok_server/huoshan/srt_dir".format(pinyin_srt))
 	df.to_csv(new_video_info_file, index=False)
+
+def compress_videos(video_info_file, new_video_info_file):
+	video_processor = VideoProcessor()
+	df = pd.read_csv(video_info_file)
+	columns = df.columns.tolist()
+	columns.append("compressed_FileName")
+	df_list = df.values.tolist()
+	for i in tqdm(range(df.shape[0])):
+		try:
+			video_file = df.iloc[i]["FileName"]
+			if video_processor.compress_video(video_file, video_file.replace(".mp4", "_compressed.mp4")):
+				df_list[i].append(video_file.replace(".mp4", "_compressed.mp4"))
+			else:
+				df_list[i].append("null")
+		except Exception as e:
+			print (str(e))
+			df_list[i].append("null")
+
+	df_new = pd.DataFrame(df_list, columns=columns)
+	df_new.to_csv(new_video_info_file, index=False)
+
+def chunk_videos(video_info_file, new_video_info_file):
+	video_processor = VideoProcessor()
+	df = pd.read_csv(video_info_file)
+	columns = df.columns.tolist()
+	for tag_idx, tag in enumerate(columns):
+		if tag == "zh_srt":
+			zh_srt_idx = tag_idx
+			continue
+		if tag == "en_srt":
+			en_srt_idx = tag_idx
+			continue
+		if tag == "ar_srt":
+			ar_srt_idx = tag_idx
+			continue
+		if tag == "pinyin_srt":
+			py_srt_idx = tag_idx
+			continue
+		if tag == "FileName":
+			video_file_idx = tag_idx
+			continue
+	columns.append("compressed_FileName")
+	df_list = df.values.tolist()
+	df_new_list = list()
+	for i in tqdm(range(df.shape[0])):
+		video_file = df.iloc[i]["FileName"]
+		zh_srt = df.iloc[i]["zh_srt"]
+		clip = VideoFileClip(video_file)  # 加载视频文件
+		if clip.duration < 120:
+			df_new_list.append(df_list[i])
+			continue
+		video_dir = os.path.dirname(video_file)
+		chunk_list = video_processor.chunk_video(video_file, zh_srt, video_dir)
+		ori_list = df_list[i]
+		for chunk in chunk_list:
+			new_list = deepcopy(ori_list)
+			new_list[video_file_idx] = chunk["video_file"]
+			new_list[zh_srt_idx] = chunk["zh_srt"]
+			new_list[en_srt_idx] = chunk["en_srt"]
+			new_list[ar_srt_idx] = chunk["ar_srt"]
+			new_list[py_srt_idx] = chunk["py_srt"]
+			df_new_list.append(new_list)
+
+	df_new = pd.DataFrame(df_new_list, columns=columns)
+	df_new.to_csv(new_video_info_file, index=False)
 
 class VideoProcessor:
 	def __init__(self):
@@ -258,7 +338,7 @@ class VideoProcessor:
 			res["pinyin_srt"] = "{}_Pinyin.srt".format(file_name)
 		try:
 			if audio_path:
-				if audio_text != None:
+				if audio_text == None:
 					ori_resp = call_huoshan_srt_wav(audio_path, language="zh-CN", words_per_line=15)
 				else:
 					ori_resp = huoshan_srt_with_text(audio_text, audio_path)
@@ -483,11 +563,13 @@ class VideoProcessor:
 				if word in self.hsk_word_set:
 					# print (word)
 					prompt = "以下是一个示例：当给到一个##中文句子##：“荷花 全身 上下 所 积蓄 的 夏日 能量”，遮挡其中“能量”这个词之后，将该句子变成一个选择题目，其中“能量“是正确选项，而其他词则是和“能量” 不相近并且也不符合语法语义的词。请注意！给我的结果需要按照如下的json格式： {}。这是一个##中文句子##：“{}”，遮挡其中“{}”这个词之后，将该句子变成一个选择题目，其中“{}“是正确选项，而其他词则是和“{}” 不相近并且也不符合语法语义的词。同时在给出理由的时候，要提及“根据视频中的语境”这类原因。请注意！给我的结果需要按照如下的json格式".format(example_quiz_json, text, word, word, word)
-					print (prompt)
+					# print (prompt)
 					try:
 						# resp = call_doubao_pro_128k(prompt)
 						resp = call_gpt4o(prompt)
-						res = json.loads(resp["choices"][0]['message']['content'])
+						content_ori = resp["choices"][0]['message']['content'].replace("```json", "").replace("```", "")
+						print (content_ori)
+						res = json.loads(content_ori)
 						print (res)
 						if res["answer"][0] not in ["A", "B", "C", "D"]:
 								res["answer"] = "B"
@@ -572,23 +654,109 @@ class VideoProcessor:
 		if len(clean_subtitle_text) > 2000:
 			clean_subtitle_text = clean_subtitle_text[0:2000]
 		prompt = "#要求:去掉下面已经分词后的中文内容中的人名、地名。并将剩下的内容按照python的list格式返回。 #中文内容：{}".format(clean_subtitle_text)
-		data = {"sysinfo": "你是一个资深的中文老师，知道一个中文词是否是人名、地名、专有名词。", "prompt": ""}
-		url = "http://10.202.196.9:8087/call_qwen25_7b"
-		data["prompt"] = prompt
-		response = requests.post(url, data=data)
-		llm_input = json.loads(response.text)["text"]
-		resp = post_http_request(prompt=llm_input, api_url="http://10.202.196.9:6679/generate", seed=1234)
-		tag_text = json.loads(resp.text)["text"][0]
+		# data = {"sysinfo": "你是一个资深的中文老师，知道一个中文词是否是人名、地名、专有名词。", "prompt": ""}
+		# url = "http://10.202.196.9:8087/call_qwen25_7b"
+		# data["prompt"] = prompt
+		
+		# response = requests.post(url, data=data)
+		# llm_input = json.loads(response.text)["text"]
+		# resp = post_http_request(prompt=llm_input, api_url="http://10.202.196.9:6679/generate", seed=1234)
+		# tag_text = json.loads(resp.text)["text"][0]
+
+		resp = call_doubao_pro_128k(prompt)
+		tag_text = json.loads(resp["choices"][0]['message']['content'])
+		
 		print (tag_text)
 		start_index = tag_text.rfind("[")
 		end_index = tag_text.rfind("]")
 		# print (tag_text[start_index:end_index+1])
 		res = ast.literal_eval(tag_text[start_index:end_index+1].replace("\n", "").replace("\t", ""))
 		return res
+	
+	def compress_video(self, video_file, compressed_video_file, too_high_resolution=480, compress_ratio=1.2):
+		if too_high_resolution == 480:
+			multi_resolution = 480 * 720
+		
+		w, h = get_video_resolution(video_file)
+		if w * h > multi_resolution:
+			reduce_ratio = float(w * h) / float(multi_resolution)
+			reduce_ratio = math.sqrt(reduce_ratio)
+			assert reduce_ratio > 1
+			reduce_ratio = reduce_ratio * compress_ratio
+			new_w = int(w / reduce_ratio)
+			if new_w % 2 != 0:
+				new_w += 1
+			new_h = int(h / reduce_ratio)
+			if new_h % 2 != 0:
+				new_h += 1
+			cmd = "/opt/homebrew/Cellar/ffmpeg/7.1_3/bin/ffmpeg -y -loglevel error -i {} -vf scale={}:{} {}".format(video_file.replace(" ", "\\ "), new_w, new_h, compressed_video_file.replace(" ", "\\ "))
+			os.system(cmd)
+			return True
+		return  False
+
+	def chunk_video(self, video_file, zh_srt, chunk_dir, chunk_dur=60, discard_dur=5):
+		# 按照chunk和字幕对长视频进行切分, 默认chunk时长为1 分钟
+		zh_subtitles = pysrt.open(zh_srt)
+		chunk_list = list()
+		pre_start_second = 0
+		pre_idx = 0
+		for idx, zh_sub in enumerate(zh_subtitles):
+			# start_time = zh_sub.start
+			# start_second = start_time.hours * 3600 + start_time.minutes * 60 + start_time.seconds + start_time.milliseconds / 1000.0
+			end_time = zh_sub.end
+			end_second = end_time.hours * 3600 + end_time.minutes * 60 + end_time.seconds + end_time.milliseconds / 1000.0
+			if (end_second - pre_start_second) > chunk_dur:
+				chunk_list.append({"sub_start_idx": pre_idx, "sub_end_idx": idx+1, "start_second": pre_start_second, "end_second": end_second + 0.5})
+				pre_start_second = end_second
+				pre_idx = idx + 1
+		if chunk_list[-1]["sub_end_idx"] != len(zh_subtitles):
+			end_time = zh_subtitles[-1].end
+			end_second = end_time.hours * 3600 + end_time.minutes * 60 + end_time.seconds + end_time.milliseconds / 1000.0
+			if (end_second - pre_start_second) > discard_dur:
+				chunk_list.append({"sub_start_idx": pre_idx, "sub_end_idx": len(zh_subtitles), "start_second": pre_start_second, "end_second": end_second})
+		
+		
+		video_name = video_file.split("/")[-1]
+		en_srt = zh_srt.replace("Chinese", "English")
+		ar_srt = zh_srt.replace("Chinese", "Arabic")
+		py_srt = zh_srt.replace("Chinese", "Pinyin")
+		
+		def split_chunk(ori_srt, start_idx, end_idx, chunk_dir, chunk_idx):
+			subs = pysrt.open(ori_srt)
+			ori_srt_name = ori_srt.split("/")[-1]
+			chunk_srt_file = os.path.join(chunk_dir, ori_srt_name.replace(".srt", "_chunk_{}.srt".format(chunk_idx)))
+			subs[start_idx:end_idx].save(chunk_srt_file)
+			return chunk_srt_file
+
+		video = VideoFileClip(video_file)
+		res = list()
+		for chunk_idx, chunk in enumerate(chunk_list):
+			chunk_file = os.path.join(chunk_dir, video_name.replace(".mp4", "_chunk_{}.mp4".format(chunk_idx)))
+			chunk_video = video.subclip(chunk["start_second"], chunk["end_second"])
+			chunk_video.write_videofile(chunk_file)
+			zh_chunk_srt = split_chunk(zh_srt, chunk["sub_start_idx"], chunk["sub_end_idx"], chunk_dir, chunk_idx)
+			en_chunk_srt = split_chunk(en_srt, chunk["sub_start_idx"], chunk["sub_end_idx"], chunk_dir, chunk_idx)
+			ar_chunk_srt = split_chunk(ar_srt, chunk["sub_start_idx"], chunk["sub_end_idx"], chunk_dir, chunk_idx)
+			py_chunk_srt = split_chunk(py_srt, chunk["sub_start_idx"], chunk["sub_end_idx"], chunk_dir, chunk_idx)
+			split_chunk(py_srt, chunk["sub_start_idx"], chunk["sub_end_idx"], chunk_dir, chunk_idx)
+			res.append({"video_file": chunk_file, "zh_srt": zh_chunk_srt, "en_srt": en_chunk_srt, "ar_srt": ar_chunk_srt, "py_srt": py_chunk_srt})
+		return res
+			
+		
 
 if __name__ == "__main__":
 	video_processor = VideoProcessor()
-	add_pinyin_srt("../video_info_huoshan.csv", "../video_info_huoshan_pinyin.csv")
+	test_video = "testdir/test.mp4"
+	zh_srt = "testdir/v0232eg10064ct6medaljhtabprl86pg_Chinese.srt"
+	video_processor.chunk_video(test_video, zh_srt, "testdir/chunk_dir")
+
+
+	# compress_videos("../video_info_huoshan.csv", "../video_info_huoshan_compressed.csv")
+	
+
+	# video_processor.compress_video("/Users/tal/work/lingtok_server/video_process/huoshan/短剧/8233-被偷走爱的那十年（43集）/1.mp4", "/Users/tal/work/lingtok_server/video_process/huoshan/短剧/8233-被偷走爱的那十年（43集）/1_compressed.mp4")
+	
+	# add_pinyin_srt("../video_info_huoshan.csv", "../video_info_huoshan_pinyin.csv")
 
 	# video_processor.convert_zhsrt_to_pinyinsrt("/Users/tal/work/lingtok_server/video_process/huoshan/航拍中国/srt_dir/v0d32eg10064ct6nihiljht6nthfplmg_Chinese.srt", "test.srt")
 

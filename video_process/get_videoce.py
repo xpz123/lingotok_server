@@ -3,11 +3,18 @@ import sys
 import pandas as pd
 import shutil
 import json
-from video_processor import VideoProcessor, zhihu_url_convert, translate_quiz_metainfo
+from video_processor import VideoProcessor, zhihu_url_convert, translate_quiz_metainfo, compress_videos
 from tqdm import tqdm
 from process_zhihu import load_id2url
 from vod_huoshan_util import *
+from vod_hw_util import upload_hw_withcsv
 from content_tagger import tag_video_info_csv_audio_ratio
+os.environ["IMAGEIO_FFMPEG_EXE"] = "/opt/homebrew/Cellar/ffmpeg/7.1_3/bin/ffmpeg"
+import uuid
+from create_video import create_with_csv
+from content_tagger import update_video_info_csv_level
+
+
 
 def cp_video_ce(df, root_dir, minid=0, maxid=100000):
     if not os.path.exists(root_dir):
@@ -419,27 +426,173 @@ def prep_huoshan_data():
     # os.system("cat {} >> ../video_metainfo.jsonl".format(os.path.join(video_dir, "video_metainfo.jsonl")))
     # tag_video_info_csv_audio_ratio("video_info_huoshan.csv", "../video_info_huoshan.csv")
 
+def prep_aigc_huoshan():
+    csv_file = "/Users/tal/work/lingtok_server/DR_1.csv"
+    zh_metainfo_file = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/DR_1_metainfo_zh.jsonl"
+    metainfo_file = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/DR_1_metainfo_all.jsonl"
+    metainfo_file_withvid = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/DR_1_metainfo_final.jsonl"
 
-# def prep_srt_data():
-#     df = pd.read_csv("video_info.csv")
-#     # zh_srt_list = list()
-#     ar_srt_list = list()
-#     video_processor = VideoProcessor()
-#     for i in tqdm(range(df.shape[0])):
-#         try:
-#             tmp_srt = df.iloc[i]["en_srt"]
-#             res = video_processor.translate_srt(tmp_srt)
-#             ar_srt_list.append(res["ar_srt"].replace("/", "\\"))
-#         except:
-#             print ("bad data")
-#             ar_srt_list.append("")
-#     df["ar_srt"] = ar_srt_list
-#     df.to_csv("video_info_withar.csv")
+    df = pd.read_csv(csv_file)
+    columns = df.columns.tolist()
+    columns.append("vid")
+    df_list = df.values.tolist()
+    # fw = open(zh_metainfo_file, "w", encoding="utf-8")
+    fw = open(metainfo_file_withvid, "w", encoding="utf-8")
+    video_processor = VideoProcessor()
+    lines = open(metainfo_file).readlines()
+    for i in tqdm(range(df.shape[0])):
+        video_path = df.iloc[i]["FileName"]
+        cmd = "/opt/homebrew/Cellar/ffmpeg/7.1_3/bin/ffmpeg -y -loglevel error -i {} -vf subtitles={} {}".format(video_path.replace(" ", "\\ "), df.iloc[i]["zh_srt"].replace(" ", "\\ "), video_path.replace(" ", "\\ ").replace(".mp4", "_zh.mp4"))
+        os.system(cmd)
+        res = upload_media(video_path.replace(".mp4", "_zh.mp4"), space_name="lingotok", tag="DR1", desc="DR1")
+        vid = res["vid"]
+        df_list[i].append(vid)
+        quiz = json.loads(lines[i].strip())
+        quiz["vid"] = vid
+        # zh_srt = df.iloc[i]["zh_srt"]
+        # quiz = video_processor.generate_quiz_zh_tiankong(zh_srt)
+        # if quiz == None:
+        #     continue
+        # os.system("sleep 1")
+        fw.write(json.dumps(quiz, ensure_ascii=False) + "\n")
+    fw.close()
+    df_new = pd.DataFrame(df_list, columns=columns)
+    df_new.to_csv(csv_file, index=False)
+
+    # translate_quiz_metainfo(zh_metainfo_file, metainfo_file)
+
+
+def prep_srt_data():
+    df = pd.read_csv("video_info.csv")
+    # zh_srt_list = list()
+    ar_srt_list = list()
+    video_processor = VideoProcessor()
+    for i in tqdm(range(df.shape[0])):
+        try:
+            tmp_srt = df.iloc[i]["en_srt"]
+            res = video_processor.translate_srt(tmp_srt)
+            ar_srt_list.append(res["ar_srt"].replace("/", "\\"))
+        except:
+            print ("bad data")
+            ar_srt_list.append("")
+    df["ar_srt"] = ar_srt_list
+    df.to_csv("video_info_withar.csv")
     
+def prep_hw_data():
 
+    # 等待创建
+    # video_dir = "/Users/tal/work/lingtok_server/video_process/hw/videos/记录生活/阿华日记"
+
+    # 字幕跑完
+    video_dir = "/Users/tal/work/lingtok_server/video_process/hw/videos/影视/阿奇讲电影"
+    
+    
+    video_list = list()
+    cover_dict = dict()
+    for root, dirs, files in os.walk(video_dir):
+        for f in files:
+            if f.find(".mp4") != -1:
+                video_list.append(os.path.join(root, f))
+                cover_path = os.path.join(root, f.replace(".mp4", ".jpg"))
+                if not os.path.exists(cover_path):
+                    cover_dict[os.path.join(root, f)] = ""
+                else:
+                    cover_dict[os.path.join(root, f)] = cover_path
+
+    srt_dir = os.path.join(video_dir, "srt_dir")
+    out_csv_file = os.path.join(video_dir, "video_info.csv")
+    srt_csv_file = os.path.join(video_dir, "video_info_srt.csv")
+    # chunk_csv_file = os.path.join(video_dir, "video_info_chunk.csv")
+
+    quiz_zh_metainfo_file = os.path.join(video_dir, "video_metainfo_zh.jsonl")
+    quiz_metainfo_file = os.path.join(video_dir, "video_metainfo.jsonl")
+
+    cover_csv_file = os.path.join(video_dir, "video_info_cover.csv")
+    compressed_csv_file = os.path.join(video_dir, "video_info_compressed.csv")
+    vod_csv_file = os.path.join(video_dir, "video_info_vod.csv")
+    tag_csv_file = os.path.join(video_dir, "video_info_tag.csv")
+    
+    # For debug
+    skip_srt = True
+    skip_quiz = True
+    skip_add_cover = True
+    skip_compress = False
+    skip_upload = False
+    skip_tag_video = False
+    skip_create = False
+
+    video_processor = VideoProcessor()
+
+    if not skip_srt:
+    
+        if not os.path.exists(srt_dir):
+            os.makedirs(srt_dir)
+
+        columns = ["FileName", "title", "description", "zh_srt", "ar_srt", "en_srt", "pinyin_srt"]
+        df_list = list()
+        for i in tqdm(range(len(video_list))):
+            item = list()
+            video_path = video_list[i]
+            srt_name = str(uuid.uuid4())
+            item.append(video_path)
+            title = "{}_{}".format(video_path.split("/")[-2], video_path.split("/")[-1].split(".")[0])
+            item.append(title)
+            description = video_path.split("/")[-2]
+            item.append(description)
+            os.system("/opt/homebrew/Cellar/ffmpeg/7.1_3/bin/ffmpeg -y -loglevel error -i {} -ac 1 -ar 16000 -f wav test.wav".format(video_path.replace(" ", "\\ ")))
+            srt_res = video_processor.generate_zhsrt("",  os.path.join(srt_dir, srt_name), audio_path="test.wav", gen_ar=True)
+            os.system("rm test.wav")
+            if srt_res == None:
+                continue
+            else:
+                item.append(srt_res["zh_srt"])
+                item.append(srt_res["ar_srt"])
+                item.append(srt_res["en_srt"])
+                item.append(srt_res["pinyin_srt"])
+            df_list.append(item)
+        df_srt = pd.DataFrame(df_list, columns=columns)
+        df_srt.to_csv(srt_csv_file, index=False)
+    
+    # if not skip_chunk:
+    #     chunk_videos(srt_csv_file, chunk_csv_file)
+    
+    if not skip_quiz:
+        generate_quiz_zh(srt_dir, quiz_zh_metainfo_file)
+        translate_quiz_metainfo(quiz_zh_metainfo_file, quiz_metainfo_file)
+    
+    if not skip_add_cover:
+        df_srt = pd.read_csv(srt_csv_file)
+        columns = df_srt.columns.tolist()
+        columns.append("cover_path")
+        df_srt_list = df_srt.values.tolist()
+        for i in range(len(df_srt_list)):
+            video_path = df_srt.iloc[i]["FileName"]
+            df_srt_list[i].append(cover_dict[video_path])
+        df_cover = pd.DataFrame(df_srt_list, columns=columns)
+        df_cover.to_csv(cover_csv_file, index=False)
+    
+    if not skip_compress:
+        compress_videos(cover_csv_file, compressed_csv_file)
+    
+    if not skip_upload:
+        upload_hw_withcsv(compressed_csv_file, vod_csv_file)
+    
+    if not skip_tag_video:
+        update_video_info_csv_level(vod_csv_file, tag_csv_file)
+    if not skip_create:
+        create_with_csv(quiz_metainfo_file, tag_csv_file, out_csv_file)
+
+    # generate_quiz_zh(srt_dir, os.path.join(video_dir, "video_metainfo_zhonly.jsonl"))
+    # merge_csv_huoshan("video_info_huoshan.csv", srt_csv_file, os.path.join(video_dir, "video_metainfo_zhonly.jsonl"))
+    # os.system("scp  {}/*.srt root@54.248.147.60:/dev/data/lingotok_server/huoshan/srt_dir".format(srt_dir))
+    # translate_quiz_metainfo(os.path.join(video_dir, "video_metainfo_zhonly.jsonl"), os.path.join(video_dir, "video_metainfo.jsonl"))
+    # os.system("cat {} >> ../video_metainfo.jsonl".format(os.path.join(video_dir, "video_metainfo.jsonl")))
+    # tag_video_info_csv_audio_ratio("video_info_huoshan.csv", "../video_info_huoshan.csv")
 
 if __name__ == '__main__':
-    prep_huoshan_data()
+    prep_hw_data()
+    # prep_aigc_huoshan()
+    # prep_huoshan_data()
     # df = pd.read_csv("video_info_530.csv")
     # cp_esrt(df, "video_Finished_361_525_ori", "video_Finished_361_525_ensrt", minid=361, maxid=525)
     

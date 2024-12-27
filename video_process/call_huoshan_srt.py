@@ -3,10 +3,11 @@ import json
 import requests
 
 base_url = 'https://openspeech.bytedance.com/api/v1/vc'
-# appid = "4822083580"
+appid = "4822083580"
 # access_token = "ICPlIxh2QEPMh1otaFjg0AqemFkuyv3a"
-appid = "5616879215"
-access_token = "T-tbHKLs92NxkOomL3jQlcuRVW48JDvZ"
+# appid = "5616879215"
+# access_token = "T-tbHKLs92NxkOomL3jQlcuRVW48JDvZ"
+access_token = "ICPlIxh2QEPMh1otaFjg0AqemFkuyv3a"
 
 
 # language = 'zh-CN'
@@ -105,6 +106,6 @@ def call_huoshan_srt_wav(file_path, language="zh-CN", words_per_line=15):
     return res
 
 if __name__ == '__main__':
-    print (call_huoshan_srt_wav("/Users/tal/work/lingtok_server/video_process/huoshan/test.wav"))
+    print (call_huoshan_srt_wav("/Users/tal/work/lingtok_server/video_process/test.wav"))
     # pass
     # main()
