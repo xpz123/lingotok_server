@@ -689,7 +689,7 @@ class VideoProcessor:
 			new_h = int(h / reduce_ratio)
 			if new_h % 2 != 0:
 				new_h += 1
-			cmd = "/opt/homebrew/Cellar/ffmpeg/7.1_3/bin/ffmpeg -y -loglevel error -i {} -vf scale={}:{} {}".format(video_file.replace(" ", "\\ "), new_w, new_h, compressed_video_file.replace(" ", "\\ "))
+			cmd = "/opt/homebrew/Cellar/ffmpeg/7.1_3/bin/ffmpeg -y -loglevel error -i {} -vf scale={}:{} {}".format(video_file.replace(" ", "\\ ").replace("&", "\\&"), new_w, new_h, compressed_video_file.replace(" ", "\\ "))
 			os.system(cmd)
 			return True
 		return  False

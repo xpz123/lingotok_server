@@ -9,7 +9,7 @@ import wave
 from datetime import timedelta
 from zhon.hanzi import punctuation
 import string
-import nltk
+# import nltk
 import hanlp
 
 def tag_video_info_csv_audio_ratio(csv_filename, new_csv_filename):
@@ -41,6 +41,8 @@ def update_video_info_csv_level(csv_filename, new_csv_filename):
         except Exception as e:
             print (e)
             level = -1
+            audio_ratio = 0
+            audio_dur = 0
         df_list[i].append(level)
         df_list[i].append(audio_ratio)
         df_list[i].append(audio_dur)
@@ -147,7 +149,7 @@ class ContentTagger:
         def time_to_seconds(time):
             return time.hours * 3600 + time.minutes * 60 + time.seconds + time.milliseconds / 1000.0
         try:
-            video_path = video_path.replace(" ", "\\ ")
+            video_path = video_path.replace(" ", "\\ ").replace("&", "\\&")
             os.system("/opt/homebrew/Cellar/ffmpeg/7.1_3/bin/ffmpeg -y -loglevel error -i {} -ac 1 -ar 16000 -f wav test.wav".format(video_path))
             # get duration of test.wav
             with wave.open("test.wav", "rb") as wf:

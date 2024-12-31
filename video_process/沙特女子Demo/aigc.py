@@ -136,6 +136,8 @@ def create_video(sents_csv, imgs_dir, audio_dir, video_dir):
         filename = df.iloc[i]["filename"]
         img_path = os.path.join(imgs_dir, filename.replace(".txt", ".png"))
         print (img_path)
+        if not os.path.exists(img_path):
+            img_path = img_path.replace(".png", ".jpeg")
         img_list.append(img_path)
         assert os.path.exists(img_path)
         audio_path = os.path.join(audio_dir, filename.replace(".txt", ".wav"))

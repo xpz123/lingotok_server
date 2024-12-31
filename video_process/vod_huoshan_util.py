@@ -1,5 +1,6 @@
 from volcengine.vod.VodService import VodService
-from volcengine.vod.models.request.request_vod_pb2 import VodListSpaceRequest, VodGetSpaceDetailRequest, VodUploadMediaRequest, VodGetMediaInfosRequest, VodUpdateMediaPublishStatusRequest, VodGetPlayInfoRequest
+from volcengine.const.Const import *
+from volcengine.vod.models.request.request_vod_pb2 import VodListSpaceRequest, VodGetSpaceDetailRequest, VodUploadMediaRequest, VodGetMediaInfosRequest, VodUpdateMediaPublishStatusRequest, VodGetPlayInfoRequest, VodUploadMaterialRequest
 from volcengine.util.Functions import Function
 import json
 from tqdm import tqdm
@@ -7,26 +8,28 @@ import os
 import csv
 import sys
 import uuid
+import pandas as pd
 
-vod_service = VodService('cn-north-1')
+# vod_service = VodService('cn-north-1')
+# space_name="lingotok"
+space_name="lingotok-fr"
+vod_service = VodService('ap-southeast-1')
 vod_service.set_ak("AKLTOTgzODg1Y2FiNDI5NGE3Mzk3MWEzYzJlODE3MDk2MzQ")
 vod_service.set_sk("TTJJM016azRaR0V3WXpRMk5EUXhPR0kyT0RBNVlUY3hZVGd5WlRrMlpHTQ==")
 
-def upload_media(file_path, space_name="lingotok", tag="", desc=""):
-    space_name = space_name
+def upload_media(file_path, title="", tag="", desc=""):
     get_meta_function = Function.get_meta_func()
     snapshot_function = Function.get_snapshot_func(2.3)
-    get_start_workflow_func = Function.get_start_workflow_template_func(
-        [{"TemplateIds": ["imp template id"], "TemplateType": "imp"},
-         {"TemplateIds": ["transcode template id"], "TemplateType": "transcode"}])
-    title = os.path.basename(file_path).replace(".mp4", "")
+    # get_start_workflow_func = Function.get_start_workflow_template_func(
+    #     [{"TemplateIds": ["imp template id"], "TemplateType": "imp"},
+    #      {"TemplateIds": ["transcode template id"], "TemplateType": "transcode"}])
     apply_function = Function.get_add_option_info_func(title, tag, desc, 0, False)
     filename = str(uuid.uuid4()) + ".mp4"
     try:
         req = VodUploadMediaRequest()
         req.SpaceName = space_name
         req.FilePath = file_path
-        req.Functions = json.dumps([get_meta_function, snapshot_function, get_start_workflow_func, apply_function])
+        req.Functions = json.dumps([get_meta_function, snapshot_function, apply_function])
         req.CallbackArgs = ''
         req.FileName = filename
         req.FileExtension = '.mp4'
@@ -37,15 +40,40 @@ def upload_media(file_path, space_name="lingotok", tag="", desc=""):
         print ("Upload failed! File: {}".format(file_path))
         return None
     else:
-        # print(resp)
         if resp.ResponseMetadata.Error.Code == '':
-            # print(resp.Result.Data)
             print(resp.Result.Data.Vid)
-            # print(resp.Result.Data.PosterUri)
             print(resp.Result.Data.SourceInfo.FileName)
-            # print(resp.Result.Data.SourceInfo.Height)
-            # print(resp.Result.Data.SourceInfo.Width)
             return {"vid": resp.Result.Data.Vid, "title": title, "filename": filename}
+        else:
+            print(resp.ResponseMetadata.Error)
+            print(resp.ResponseMetadata.RequestId)
+            return None
+
+def upload_srt(file_path, tag="", desc=""):
+    apply_function = Function.get_add_option_info_func("test_title", "test", "test", 4, "srt")
+    input_func = Function.get_caption_func(title="test", format="srt", vid="v18f18g00057ctnph4n3ksl620u6d7l0", fid="v18f18g00057ctnph4n3ksl620u6d7l0", language="eng-US", source="", tag="chinese", action_type="upload", store_uri="")
+
+    try:
+        req = VodUploadMaterialRequest()
+        req.FileType = FILE_TYPE_MEDIA
+        req.SpaceName = space_name
+        req.FilePath = file_path
+        req.Functions = json.dumps([apply_function, input_func])
+        req.CallbackArgs = ''
+        req.FileExtension = '.srt'
+        req.UploadHostPrefer = ''
+
+        resp = vod_service.upload_material(req)
+        import pdb
+        pdb.set_trace()
+
+    except Exception:
+        raise
+    else:
+        if resp.ResponseMetadata.Error.Code == '':
+            print(resp.Result.Data.Vid)
+            print(resp.Result.Data.SourceInfo.FileName)
+            return {"vid": resp.Result.Data.Vid}
         else:
             print(resp.ResponseMetadata.Error)
             print(resp.ResponseMetadata.RequestId)
@@ -92,7 +120,7 @@ def get_mdeia_info(vid_list):
 def change_media_status(vid, status="Published"):
     assert status in ["Published", "Unpublished"]
     try:
-        status = 'Unpublished'
+        status = status
         req3 = VodUpdateMediaPublishStatusRequest()
         req3.Vid = vid
         req3.Status = status
@@ -124,18 +152,63 @@ def get_vid_playurl(vid):
             print(resp.ResponseMetadata.Error)
 
 
+
+def upload_huoshan_withcsv(video_info_csv, out_csv):
+    df = pd.read_csv(video_info_csv)
+    columns= df.columns.tolist()
+    columns.append("asset_id")
+    # has_asset_id = False
+    # if "asset_id" not in columns:
+    #     columns.append("asset_id")
+    # else:
+    #     has_asset_id  = True
+    #     for idx, col in enumerate(columns):
+    #         if col == "asset_id":
+    #             asset_idx = idx
+    df_list = df.values.tolist()
+    for i in tqdm(range(df.shape[0])):
+        try:
+
+            video_path = df.iloc[i]["FileName"]
+            zh_srt_path = df.iloc[i]["zh_srt"].replace("\\", "/")
+            en_srt_path = df.iloc[i]["en_srt"].replace("\\", "/")
+            ar_srt_path = df.iloc[i]["ar_srt"].replace("\\", "/")
+            py_srt_path = df.iloc[i]["pinyin_srt"].replace("\\", "/")
+            title = "_".join(video_path.split("/")[-2:])
+            print (title)
+            description = video_path.split("/")[-2]
+            print (description)
+            media_info = upload_media(video_path, title=title, tag=description, desc=description)
+            df_list[i].append(media_info["vid"])
+            change_media_status(media_info["vid"], "Published")
+        except Exception as e:
+            df_list[i].append("nan")
+            print (e)
+            print ("error in {}".format(title))
+    df_new = pd.DataFrame(df_list, columns=columns)
+    df_new.to_csv(out_csv, index=False)
+
 if __name__ == "__main__":
     # pass
+    df = pd.read_csv("/Users/tal/work/lingtok_server/video_info_hw_created.csv")
+    df.drop("asset_id", axis=1, inplace=True)
+    df.drop("video_id", axis=1, inplace=True)
+    df.to_csv("/Users/tal/work/lingtok_server/video_process/huoshan/video_info_800_wait_upload.csv", index=False)
+    upload_huoshan_withcsv("/Users/tal/work/lingtok_server/video_process/huoshan/video_info_800_wait_upload.csv", "/Users/tal/work/lingtok_server/video_process/huoshan/video_info_800_uploaded.csv")
+    
+    
     # upload_dir_list = []
 
-    print (get_vid_playurl("v0d32eg10064csvcfn2ljhtd29dgu3rg"))
+    # print (get_vid_playurl("v0d32eg10064csvcfn2ljhtd29dgu3rg"))
 
 
     # traverse_and_upload("huoshan/欢乐颂", "huoshan/欢乐颂.csv")
     
+    # file_path = "/Users/tal/work/lingtok_server/video_process/hw/videos/记录生活/阿华日记/30出头啦，终于学会包粽子啦，提前祝大家端午安康！#回村的生活 #包粽子喽 #陪伴家人 #记录真实生活.mp4"
+    # res = upload_media(file_path)
 
-    # file_path = "/Users/tal/work/lingtok_server/video_process/chinese_test/安迪承认有点喜欢包奕凡#因为一个片段看了整部剧 #欢乐颂2 #我在抖音追剧 #追剧不能停 #好剧推荐.mp4"
-    # upload_media(file_path)
+    # file_path = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/Dr. Asmac材料1/合成文本/lesson1-part3/lesson1-part3_Chinese.srt"
+    # upload_srt(file_path)
 
     
 

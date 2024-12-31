@@ -52,8 +52,20 @@ def put_srt(file_path, upload_srt_url, md5):
             print(f"文件上传失败，状态码: {response.status_code}, 原因: {response.text}")
             return False
 
-
-
+def call_convert(asset_id):
+    try:
+        request = CreateAssetProcessTaskRequest()
+        request.body = AssetProcessReq(
+            asset_id=asset_id,
+            template_group_name="system_template_group"
+        )
+        response = client.create_asset_process_task(request)
+        print(response)
+    except exceptions.ClientRequestException as e:
+        print(e.status_code)
+        print(e.request_id)
+        print(e.error_code)
+        print(e.error_msg)
 
 def upload_media(video_path, zh_srt_path=None, en_srt_path=None, ar_srt_path=None, py_srt_path=None, cover_path=None, title=None, description=None):
     # create asset
@@ -61,18 +73,19 @@ def upload_media(video_path, zh_srt_path=None, en_srt_path=None, ar_srt_path=Non
     try:
         request = CreateAssetByFileUploadRequest()
         listSubtitlesbody = []
-        if zh_srt_path != None:
-            with open(zh_srt_path, 'rb') as fp:
+        if py_srt_path != None:
+            with open(py_srt_path, 'rb') as fp:
                 data = fp.read()
-                zh_file_md5 = str(base64.b64encode(hashlib.md5(data).digest()), 'utf-8')
-            zh_srt_name = "{}_Chinese.srt".format(video_name)
+                py_file_md5 = str(base64.b64encode(hashlib.md5(data).digest()), 'utf-8')
+            py_srt_name = "{}_Pinyin.srt".format(video_name)
             listSubtitlesbody.append(Subtitle(
                 id=1,
                 type="SRT",
                 language="CN",
-                name=zh_srt_name,
-                md5=zh_file_md5
+                name=py_srt_name,
+                md5=py_file_md5
             ))
+        
         if en_srt_path != None:
             with open(en_srt_path, 'rb') as fp:
                 data = fp.read()
@@ -97,17 +110,17 @@ def upload_media(video_path, zh_srt_path=None, en_srt_path=None, ar_srt_path=Non
                 name=ar_srt_name,
                 md5=ar_file_md5
             ))
-        if py_srt_path != None:
-            with open(py_srt_path, 'rb') as fp:
+        if zh_srt_path != None:
+            with open(zh_srt_path, 'rb') as fp:
                 data = fp.read()
-                py_file_md5 = str(base64.b64encode(hashlib.md5(data).digest()), 'utf-8')
-            py_srt_name = "{}_Pinyin.srt".format(video_name)
+                zh_file_md5 = str(base64.b64encode(hashlib.md5(data).digest()), 'utf-8')
+            zh_srt_name = "{}_Chinese.srt".format(video_name)
             listSubtitlesbody.append(Subtitle(
                 id=4,
                 type="SRT",
                 language="CN",
-                name=py_srt_name,
-                md5=py_file_md5
+                name=zh_srt_name,
+                md5=zh_file_md5
             ))
         
         if title == None:
@@ -150,7 +163,7 @@ def upload_media(video_path, zh_srt_path=None, en_srt_path=None, ar_srt_path=Non
             assert cover_success
         
         if zh_srt_path != None:
-            srt_success = put_srt(zh_srt_path, subtitle_upload_urls[0], zh_file_md5)
+            srt_success = put_srt(zh_srt_path, subtitle_upload_urls[3], zh_file_md5)
             assert srt_success
         if en_srt_path != None:
             srt_success = put_srt(en_srt_path, subtitle_upload_urls[1], en_file_md5)
@@ -159,7 +172,7 @@ def upload_media(video_path, zh_srt_path=None, en_srt_path=None, ar_srt_path=Non
             srt_success = put_srt(ar_srt_path, subtitle_upload_urls[2], ar_file_md5)
             assert srt_success
         if py_srt_path != None:
-            srt_success = put_srt(py_srt_path, subtitle_upload_urls[3], py_file_md5)
+            srt_success = put_srt(py_srt_path, subtitle_upload_urls[0], py_file_md5)
             assert srt_success
 
         request = ConfirmAssetUploadRequest()
@@ -169,11 +182,13 @@ def upload_media(video_path, zh_srt_path=None, en_srt_path=None, ar_srt_path=Non
         )
         response = client.confirm_asset_upload(request)
         print(response)
+        call_convert(response.asset_id)
         return response.asset_id
         
     except Exception as e:
         print (e)
         return None
+
 
 def upload_hw_withcsv(video_info_csv, out_csv):
     df = pd.read_csv(video_info_csv)
@@ -189,52 +204,78 @@ def upload_hw_withcsv(video_info_csv, out_csv):
     df_list = df.values.tolist()
     df_new_list = []
     for i in tqdm(range(df.shape[0])):
+        try:
 
-        ori_list = df_list[i]
-        if "compressed_FileName" in columns and df.iloc[i]["compressed_FileName"] != "null":
-            video_path = df.iloc[i]["compressed_FileName"]
-        else:
-            video_path = df.iloc[i]["FileName"]
-        zh_srt_path = df.iloc[i]["zh_srt"].replace("\\", "/")
-        en_srt_path = df.iloc[i]["en_srt"].replace("\\", "/")
-        ar_srt_path = df.iloc[i]["ar_srt"].replace("\\", "/")
-        py_srt_path = df.iloc[i]["pinyin_srt"].replace("\\", "/")
-        title = "_".join(video_path.split("/")[-2:])
-        print (title)
-        description = video_path.split("/")[-2]
-        print (description)
-        # cover_path = None
-        if str(df.iloc[i]["cover_path"]) == "nan":
-            cover_path = None
-        else:
-            cover_path = df.iloc[i]["cover_path"].replace("\\", "/")
-        if has_asset_id:
-            if str(df.iloc[i]["asset_id"]) != "nan":
-                df_new_list.append(ori_list)
+            ori_list = df_list[i]
+            if "compressed_FileName" in columns and df.iloc[i]["compressed_FileName"] != "null" and str(df.iloc[i]["compressed_FileName"]) != "nan":
+                video_path = df.iloc[i]["compressed_FileName"]
+            else:
+                video_path = df.iloc[i]["FileName"]
+            zh_srt_path = df.iloc[i]["zh_srt"].replace("\\", "/")
+            en_srt_path = df.iloc[i]["en_srt"].replace("\\", "/")
+            ar_srt_path = df.iloc[i]["ar_srt"].replace("\\", "/")
+            py_srt_path = df.iloc[i]["pinyin_srt"].replace("\\", "/")
+            title = "_".join(video_path.split("/")[-2:])
+            print (title)
+            description = video_path.split("/")[-2]
+            print (description)
+            # cover_path = None
+            if (not "cover_path" in columns) or str(df.iloc[i]["cover_path"]) == "nan":
+                cover_path = None
+            else:
+                cover_path = df.iloc[i]["cover_path"].replace("\\", "/")
+            if has_asset_id:
+                if str(df.iloc[i]["asset_id"]) != "nan":
+                    df_new_list.append(ori_list)
+                else:
+                    try:
+                        asset_id = upload_media(video_path, zh_srt_path=zh_srt_path, en_srt_path=en_srt_path, ar_srt_path=ar_srt_path, py_srt_path=py_srt_path, title=title, description=description, cover_path=cover_path)
+                        if asset_id == None:
+                            print ("###########wait for 3s#############")
+                            sleep(3)
+                        ori_list[asset_idx] = asset_id
+                        df_new_list.append(ori_list)
+                    except Exception as e:
+                        print (e)
+                        sleep(5)
             else:
                 try:
                     asset_id = upload_media(video_path, zh_srt_path=zh_srt_path, en_srt_path=en_srt_path, ar_srt_path=ar_srt_path, py_srt_path=py_srt_path, title=title, description=description, cover_path=cover_path)
-                    ori_list[asset_idx] = asset_id
+                    if asset_id == None:
+                        print ("###########wait for 3s#############")
+                        sleep(3)
+                    ori_list.append(asset_id)
                     df_new_list.append(ori_list)
                 except Exception as e:
                     print (e)
-                    sleep(5)
-        else:
-            try:
-                asset_id = upload_media(video_path, zh_srt_path=zh_srt_path, en_srt_path=en_srt_path, ar_srt_path=ar_srt_path, py_srt_path=py_srt_path, title=title, description=description, cover_path=cover_path)
-                ori_list.append(asset_id)
-                df_new_list.append(ori_list)
-            except Exception as e:
-                print (e)
-                sleep(1)
+                    print ("wait for 10s")
+                    sleep(10)
+        except Exception as e:
+            print (e)
+            print ("error in {}".format(title))
     df_new = pd.DataFrame(df_new_list, columns=columns)
     df_new.to_csv(out_csv, index=False)
 
-
-
-
 if __name__ == "__main__":
     pass
+    # df = pd.read_csv("/Users/tal/work/lingtok_server/video_info_hw_created.csv")
+    # df.drop("asset_id", axis=1, inplace=True)
+    # df.drop("video_id", axis=1, inplace=True)
+    # df.to_csv("/Users/tal/work/lingtok_server/video_process/hw/video_info_800_wait_upload.csv", index=False)
+    # vod_csv_file = "/Users/tal/work/lingtok_server/video_process/hw/video_info_800_uploaded.csv"
+    # upload_hw_withcsv("/Users/tal/work/lingtok_server/video_process/hw/video_info_800_wait_upload.csv", vod_csv_file)
+    # df_vod = pd.read_csv(vod_csv_file)
+    # null_num = df_vod["asset_id"].isnull().sum()
+    # all_num = df_vod.shape[0]
+    # while null_num > int(0.05 * all_num):
+    #     upload_hw_withcsv(vod_csv_file, vod_csv_file)
+    #     df_vod = pd.read_csv(vod_csv_file)
+    #     null_num = df_vod["asset_id"].isnull().sum()
+    #     all_num = df_vod.shape[0]
+
+    # call_convert("fe0fbad10f6e0fe65cac76cf69972eb9")
+
+
     # upload_hw_withcsv("沙特女子Demo/DR_1.csv", "hw/DR_1.csv")
     # upload_hw_withcsv("hw/video_info_hw_500.csv", "hw/video_info_hw.csv")
     # upload_media("/Users/tal/work/lingtok_server/video_process/沙特女子Demo/Dr. Asmac材料1/合成文本/lesson1-part1/output.mp4", zh_srt_path="/Users/tal/work/lingtok_server/video_process/沙特女子Demo/Dr. Asmac材料1/合成文本/lesson1-part1/lesson1-part1_Chinese.srt", ar_srt_path="/Users/tal/work/lingtok_server/video_process/沙特女子Demo/Dr. Asmac材料1/合成文本/lesson1-part1/lesson1-part1_Arabic.srt", en_srt_path="/Users/tal/work/lingtok_server/video_process/沙特女子Demo/Dr. Asmac材料1/合成文本/lesson1-part1/lesson1-part1_Arabic.srt", cover_path="/Users/tal/work/lingtok_server/video_process/沙特女子Demo/Dr. Asmac材料1/合成文本/lesson1-part1/sent2.png", title="test", description="test test")

@@ -11,7 +11,7 @@ from vod_hw_util import upload_hw_withcsv
 from content_tagger import tag_video_info_csv_audio_ratio
 os.environ["IMAGEIO_FFMPEG_EXE"] = "/opt/homebrew/Cellar/ffmpeg/7.1_3/bin/ffmpeg"
 import uuid
-from create_video import create_with_csv, update_videoinfo_recommender_withcsv
+from create_video import create_with_csv
 from content_tagger import update_video_info_csv_level
 
 
@@ -482,179 +482,127 @@ def prep_srt_data():
     
 def prep_hw_data():
 
-    ## 等待merge
+    # 等待merge
     video_dir_list = []
-    video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/记录生活/阿华日记")
+    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/记录生活/阿华日记")
     # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/影视/阿奇讲电影")
     # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/记录生活/大白在广州")
     # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/记录生活/黄姐夫在德国")
-    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/其他/滕云阁男士礼品")
-
-    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/huoshan/萌宠/爱撒娇的淘气喵")
-    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/huoshan/萌宠/丢那猩动物园")
-    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/其他/奶龙")
-    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/huoshan/萌宠/开饭了大熊猫part2")
-    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/科技/4AM居士")
-    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/科技/何同学")
-
-    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/美妆/程十安an")
-
-    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/huoshan/萌宠/开饭了大熊猫-part")
-
-    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/huoshan/萌宠/苏苏家的三小只")
-    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/huoshan/其他/科普星球")
-    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/huoshan/萌宠/永智与志胜")
-    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/huoshan/萌宠/开饭了大熊猫")
-    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/其他/油管吃瓜群众茶话会")
-    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/huoshan/美妆/阿min学姐")
-    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/huoshan/美妆/今天要不要去吃烧烤")
-    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/记录生活/皖乡凤姐")
-    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/huoshan/其他/清风乍起")
-    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/影视/电影冷知识")
-    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/记录生活/小悦de生活日记")
-
-    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/huoshan/短剧0-20/9903-顾总的签约小情人（80集）")
-    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/huoshan/短剧0-20/9901-我的玄主身份藏不住了（80集）于宙童")
-    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/huoshan/短剧0-20/9905-崛起，从掌控时间开始（88集）李若希&杨泽琳")
-    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/科技/毕的二阶导")
-    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/车/陈hh")
-    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/儿童/精品资源坊经典儿歌")
-    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/儿童/超级宝贝JOJO】1-5季 中文儿歌")
-    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/儿童/维C动物园的作品")
-
-    # 等待上传
-    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/记录生活/小猪猪的小生活儿")
-    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/科技/易知诸鉴")
-    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/记录生活/打工仔小张耶")
-    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/科技/痞夫有则")
-    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/科技/说车的阿飞")
-    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/记录生活/ahua")
-    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/科技/亿点点不一样")
-
-
-
-    for video_dir in video_dir_list:
-        video_list = list()
-        cover_dict = dict()
-        for root, dirs, files in os.walk(video_dir):
-            for f in files:
-                if f.find(".mp4") != -1:
-                    video_list.append(os.path.join(root, f))
-                    cover_path = os.path.join(root, f.replace(".mp4", ".jpg"))
-                    if not os.path.exists(cover_path):
-                        cover_dict[os.path.join(root, f)] = ""
-                    else:
-                        cover_dict[os.path.join(root, f)] = cover_path
-
-        srt_dir = os.path.join(video_dir, "srt_dir")
-        out_csv_file = os.path.join(video_dir, "video_info.csv")
-        srt_csv_file = os.path.join(video_dir, "video_info_srt.csv")
-        # chunk_csv_file = os.path.join(video_dir, "video_info_chunk.csv")
-
-        quiz_zh_metainfo_file = os.path.join(video_dir, "video_metainfo_zh.jsonl")
-        quiz_metainfo_file = os.path.join(video_dir, "video_metainfo.jsonl")
-
-        cover_csv_file = os.path.join(video_dir, "video_info_cover.csv")
-        # compressed_csv_file = os.path.join(video_dir, "video_info_compressed.csv")
-        vod_csv_file = os.path.join(video_dir, "video_info_vod_hw.csv")
-        tag_csv_file = os.path.join(video_dir, "video_info_tag.csv")
-        
-        # For debug
-        skip_srt = True
-        skip_quiz = True
-        skip_add_cover = True
-        skip_tag_video = True
-        # skip_compress = True
-        skip_upload = True
-
-        skip_create = True
-        skip_update_recommender = False
-
-        video_processor = VideoProcessor()
-
-        if not skip_srt:
-        
-            if not os.path.exists(srt_dir):
-                os.makedirs(srt_dir)
-
-            columns = ["FileName", "title", "description", "zh_srt", "ar_srt", "en_srt", "pinyin_srt"]
-            df_list = list()
-            for i in tqdm(range(len(video_list))):
-                item = list()
-                video_path = video_list[i]
-                srt_name = str(uuid.uuid4())
-                item.append(video_path)
-                title = "{}_{}".format(video_path.split("/")[-2], video_path.split("/")[-1].split(".")[0])
-                item.append(title)
-                description = video_path.split("/")[-2]
-                item.append(description)
-                os.system("/opt/homebrew/Cellar/ffmpeg/7.1_3/bin/ffmpeg -y -loglevel error -i {} -ac 1 -ar 16000 -f wav test.wav".format(video_path.replace(" ", "\\ ").replace("&", "\\&")))
-                srt_res = video_processor.generate_zhsrt("",  os.path.join(srt_dir, srt_name), audio_path="test.wav", gen_ar=True)
-                os.system("rm test.wav")
-                if srt_res == None:
-                    continue
-                else:
-                    item.append(srt_res["zh_srt"])
-                    item.append(srt_res["ar_srt"])
-                    item.append(srt_res["en_srt"])
-                    item.append(srt_res["pinyin_srt"])
-                df_list.append(item)
-            df_srt = pd.DataFrame(df_list, columns=columns)
-            df_srt.to_csv(srt_csv_file, index=False)
-        
-        if not skip_quiz:
-            generate_quiz_zh(srt_dir, quiz_zh_metainfo_file)
-            translate_quiz_metainfo(quiz_zh_metainfo_file, quiz_metainfo_file)
-        
-        if not skip_add_cover:
-            df_srt = pd.read_csv(srt_csv_file)
-            columns = df_srt.columns.tolist()
-            columns.append("cover_path")
-            df_srt_list = df_srt.values.tolist()
-            for i in range(len(df_srt_list)):
-                video_path = df_srt.iloc[i]["FileName"]
-                df_srt_list[i].append(cover_dict[video_path])
-            df_cover = pd.DataFrame(df_srt_list, columns=columns)
-            df_cover.to_csv(cover_csv_file, index=False)
-        
-        # if not skip_compress:
-        #     compress_videos(cover_csv_file, compressed_csv_file)
-        
-        if not skip_tag_video:
-            update_video_info_csv_level(cover_csv_file, tag_csv_file)
-
-        if not skip_upload:
-            if os.path.exists(vod_csv_file):
-                upload_hw_withcsv(vod_csv_file, vod_csv_file)
-            else:
-                upload_hw_withcsv(tag_csv_file, vod_csv_file)
-            
-            df_vod = pd.read_csv(vod_csv_file)
-
-            null_num = df_vod["asset_id"].isnull().sum()
-            all_num = df_vod.shape[0]
-            while null_num > int(0.05 * all_num):
-                upload_hw_withcsv(vod_csv_file, vod_csv_file)
-                df_vod = pd.read_csv(vod_csv_file)
-                null_num = df_vod["asset_id"].isnull().sum()
-                all_num = df_vod.shape[0]
-
-            # upload_huoshan_withcsv(tag_csv_file, vod_csv_file)
-
-        if not skip_create:
-            create_with_csv(quiz_metainfo_file, vod_csv_file, out_csv_file)
-        
-        if not skip_update_recommender:
-            update_videoinfo_recommender_withcsv(out_csv_file)
     
-        # merge_csv_huoshan("/Users/tal/work/lingtok_server/video_info_hw_created.csv", out_csv_file)
+    # 字幕完成
+    # video_dir = "/Users/tal/work/lingtok_server/video_process/hw/videos/科技/4AM居士"
+    # video_dir = "/Users/tal/work/lingtok_server/video_process/hw/videos/科技/何同学"
+    
 
-        # generate_quiz_zh(srt_dir, os.path.join(video_dir, "video_metainfo_zhonly.jsonl"))
-        # merge_csv_huoshan("video_info_huoshan.csv", srt_csv_file, os.path.join(video_dir, "video_metainfo_zhonly.jsonl"))
-        # os.system("scp  {}/*.srt root@54.248.147.60:/dev/data/lingotok_server/huoshan/srt_dir".format(srt_dir))
-        # translate_quiz_metainfo(os.path.join(video_dir, "video_metainfo_zhonly.jsonl"), os.path.join(video_dir, "video_metainfo.jsonl"))
-        # os.system("cat {} >> ../video_metainfo.jsonl".format(os.path.join(video_dir, "video_metainfo.jsonl")))
-        # tag_video_info_csv_audio_ratio("video_info_huoshan.csv", "../video_info_huoshan.csv")
+    # 字幕进行中
+    video_dir = "/Users/tal/work/lingtok_server/video_process/hw/videos/记录生活/ahua"
+    
+    video_list = list()
+    cover_dict = dict()
+    for root, dirs, files in os.walk(video_dir):
+        for f in files:
+            if f.find(".mp4") != -1:
+                video_list.append(os.path.join(root, f))
+                cover_path = os.path.join(root, f.replace(".mp4", ".jpg"))
+                if not os.path.exists(cover_path):
+                    cover_dict[os.path.join(root, f)] = ""
+                else:
+                    cover_dict[os.path.join(root, f)] = cover_path
+
+    srt_dir = os.path.join(video_dir, "srt_dir")
+    out_csv_file = os.path.join(video_dir, "video_info.csv")
+    srt_csv_file = os.path.join(video_dir, "video_info_srt.csv")
+    # chunk_csv_file = os.path.join(video_dir, "video_info_chunk.csv")
+
+    quiz_zh_metainfo_file = os.path.join(video_dir, "video_metainfo_zh.jsonl")
+    quiz_metainfo_file = os.path.join(video_dir, "video_metainfo.jsonl")
+
+    cover_csv_file = os.path.join(video_dir, "video_info_cover.csv")
+    compressed_csv_file = os.path.join(video_dir, "video_info_compressed.csv")
+    vod_csv_file = os.path.join(video_dir, "video_info_vod.csv")
+    tag_csv_file = os.path.join(video_dir, "video_info_tag.csv")
+    
+    # For debug
+    skip_srt = False
+    skip_quiz = False
+    skip_add_cover = False
+    skip_tag_video = False
+    # skip_compress = True
+    skip_upload = True
+    
+    skip_create = True
+
+    video_processor = VideoProcessor()
+
+    if not skip_srt:
+    
+        if not os.path.exists(srt_dir):
+            os.makedirs(srt_dir)
+
+        columns = ["FileName", "title", "description", "zh_srt", "ar_srt", "en_srt", "pinyin_srt"]
+        df_list = list()
+        for i in tqdm(range(len(video_list))):
+            item = list()
+            video_path = video_list[i]
+            srt_name = str(uuid.uuid4())
+            item.append(video_path)
+            title = "{}_{}".format(video_path.split("/")[-2], video_path.split("/")[-1].split(".")[0])
+            item.append(title)
+            description = video_path.split("/")[-2]
+            item.append(description)
+            os.system("/opt/homebrew/Cellar/ffmpeg/7.1_3/bin/ffmpeg -y -loglevel error -i {} -ac 1 -ar 16000 -f wav test.wav".format(video_path.replace(" ", "\\ ").replace("&", "\\&")))
+            srt_res = video_processor.generate_zhsrt("",  os.path.join(srt_dir, srt_name), audio_path="test.wav", gen_ar=True)
+            os.system("rm test.wav")
+            if srt_res == None:
+                continue
+            else:
+                item.append(srt_res["zh_srt"])
+                item.append(srt_res["ar_srt"])
+                item.append(srt_res["en_srt"])
+                item.append(srt_res["pinyin_srt"])
+            df_list.append(item)
+        df_srt = pd.DataFrame(df_list, columns=columns)
+        df_srt.to_csv(srt_csv_file, index=False)
+    
+    if not skip_quiz:
+        generate_quiz_zh(srt_dir, quiz_zh_metainfo_file)
+        translate_quiz_metainfo(quiz_zh_metainfo_file, quiz_metainfo_file)
+    
+    if not skip_add_cover:
+        df_srt = pd.read_csv(srt_csv_file)
+        columns = df_srt.columns.tolist()
+        columns.append("cover_path")
+        df_srt_list = df_srt.values.tolist()
+        for i in range(len(df_srt_list)):
+            video_path = df_srt.iloc[i]["FileName"]
+            df_srt_list[i].append(cover_dict[video_path])
+        df_cover = pd.DataFrame(df_srt_list, columns=columns)
+        df_cover.to_csv(cover_csv_file, index=False)
+    
+    if not skip_tag_video:
+        update_video_info_csv_level(cover_csv_file, tag_csv_file)
+    # if not skip_compress:
+    #     compress_videos(cover_csv_file, compressed_csv_file)
+    
+    if not skip_upload:
+        if os.path.exists(vod_csv_file):
+            upload_hw_withcsv(vod_csv_file, vod_csv_file)
+        else:
+            upload_hw_withcsv(compressed_csv_file, vod_csv_file)
+        
+    
+    
+    if not skip_create:
+        create_with_csv(quiz_metainfo_file, tag_csv_file, out_csv_file)
+    
+    # merge_csv_huoshan("/Users/tal/work/lingtok_server/video_info_hw_created.csv", out_csv_file)
+
+    # generate_quiz_zh(srt_dir, os.path.join(video_dir, "video_metainfo_zhonly.jsonl"))
+    # merge_csv_huoshan("video_info_huoshan.csv", srt_csv_file, os.path.join(video_dir, "video_metainfo_zhonly.jsonl"))
+    # os.system("scp  {}/*.srt root@54.248.147.60:/dev/data/lingotok_server/huoshan/srt_dir".format(srt_dir))
+    # translate_quiz_metainfo(os.path.join(video_dir, "video_metainfo_zhonly.jsonl"), os.path.join(video_dir, "video_metainfo.jsonl"))
+    # os.system("cat {} >> ../video_metainfo.jsonl".format(os.path.join(video_dir, "video_metainfo.jsonl")))
+    # tag_video_info_csv_audio_ratio("video_info_huoshan.csv", "../video_info_huoshan.csv")
 
 if __name__ == '__main__':
     prep_hw_data()

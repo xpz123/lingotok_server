@@ -3,6 +3,23 @@ import json
 import pandas as pd
 from tqdm import tqdm
 
+def update_videoinfo_recommender_withcsv(csv_file):
+    df = pd.read_csv(csv_file)
+    url = "http://localhost:5000/update_recommender_video_info"
+    for i in tqdm(range(df.shape[0])):
+        try:
+            data = df.iloc[i].to_dict()
+            new_data = dict()
+            for k in data.keys():
+                if str(data[k]) != "nan":
+                    new_data[k] = data[k]
+                else:
+                    new_data[k] = None
+            response = requests.post(url, json=new_data)
+        except Exception as e:
+            print (e)
+            print ("error in {}".format(df.iloc[i]["title"]))
+
 def create_video_internal(asset_id, title, duration, quiz_list, sub_list, level, audio_ratio):
     # quiz_lang = {"language": "zh", "question": "测试问题?", "option_list": ["选项1", "选项2", "选项3", "选项4"], "answer_list": ["选项3"], "explanation": "解释"}
     # quiz = {"quiz_id": "1", "quiz_type": "single_choice", "quiz_language_list": [quiz_lang]}
@@ -50,9 +67,20 @@ def create_with_csv(meta_file, csv_file, out_csv_file):
         quizd[data["vid"]] = data
     df = pd.read_csv(csv_file)
     columns = df.columns.to_list()
-    columns.append("video_id")
+    has_video_id = False
+    if "video_id" not in columns:
+        columns.append("video_id")
+    else:
+        has_video_id  = True
+        for idx, col in enumerate(columns):
+            if col == "video_id":
+                videoid_idx = idx
+
     df_list = df.values.tolist()
     for i in tqdm(range(df.shape[0])):
+        if has_video_id:
+            if df.iloc[i][videoid_idx] != "nan":
+                continue
         video_path = df.iloc[i]["FileName"]
         title = "{}_{}".format(video_path.split("/")[-2], video_path.split("/")[-1].split(".")[0])
         if "VID" in df.columns:
@@ -75,14 +103,23 @@ def create_with_csv(meta_file, csv_file, out_csv_file):
         try:
             resp = create_video_internal(asset_id, title, dur, [quiz], subtitles, level, audio_ratio)
             if resp["code"] == 200 and resp["message"] == "success":
-                df_list[i].append(resp["data"]["video_info"]["video_id"])
+                if has_video_id:
+                    df_list[i][videoid_idx] = resp["data"]["video_info"]["video_id"]
+                else:
+                    df_list[i].append(resp["data"]["video_info"]["video_id"])
             else:
-                df_list[i].append("nan")
+                if has_video_id:
+                    df_list[i][videoid_idx] = "nan"
+                else:
+                    df_list[i].append("nan")
                 print ("Failed in {}".format(title))
 
 
         except Exception as e:
-            df_list[i].append("nan")
+            if has_video_id:
+                df_list[i][videoid_idx] = "nan"
+            else:
+                df_list[i].append("nan")
             print (e)
             print ("error in {}".format(title))
     
@@ -91,6 +128,7 @@ def create_with_csv(meta_file, csv_file, out_csv_file):
 
 
 if __name__ == "__main__":
-    create_with_csv("../video_metainfo.jsonl", "hw/video_info_hw_update_level.csv", "hw/video_info_hw_created.csv")
+    update_videoinfo_recommender_withcsv("/Users/tal/work/lingtok_server/video_process/hw/videos/车/陈hh/video_info.csv")
+    # create_with_csv("../video_metainfo.jsonl", "/Users/tal/work/lingtok_server/video_process/hw/video_info_800_uploaded.csv", "/Users/tal/work/lingtok_server/video_process/hw/video_info_800_created.csv")
     # print (json.dumps(convert_quiz(quiz), ensure_ascii=False))
 
