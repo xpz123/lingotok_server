@@ -8,8 +8,10 @@ import random as rd
 
 class Recommender:
     def __init__(self):
-        # self.df = pd.read_csv("video_info_huoshan.csv")
-        df_ori = pd.read_csv("video_info_hw_created.csv")
+        if os.path.exists("video_info_hw_created_nona.csv"):
+            df_ori = pd.read_csv("video_info_hw_created_nona.csv")
+        else:
+            df_ori = pd.read_csv("video_info_hw_created_new.csv")
         self.df = df_ori.dropna(subset=["video_id"])
 
         self.df_pnu = pd.read_csv("DR_1.csv")
@@ -93,6 +95,15 @@ class Recommender:
                 print ("error vid : {}".format(self.video_info['VID'][i]))
         self.username_idx[username] += recommended_video_count
         return video_list
+    def update_video_info(self, video_info):
+        video_id = str(video_info["video_id"])
+        if len(video_id) < 8:
+            return
+        if self.df[self.df["video_id"] == video_id].shape[0] == 0:
+            new_line = pd.DataFrame([video_info])
+            self.df = pd.concat([self.df, new_line], ignore_index=True)
+            self.df.to_csv("video_info_hw_created_nona.csv", index=False)
+
 
 if __name__ == "__main__":
     recommender = Recommender()

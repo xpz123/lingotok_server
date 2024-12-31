@@ -17,7 +17,15 @@ def recommend_video():
         print (e)
         return {"code": -1, "video_id_list": []}
 
-
+@app.route('/update_recommender_video_info', methods=["POST"])
+def update_recommender_video_info():
+    input_data = request.get_json()
+    try:
+        recommender.update_video_info(input_data)
+        return {"code": 200}
+    except Exception as e:
+        print (str(e))
+        return {"code": -1}
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0',
