@@ -104,6 +104,9 @@ class Recommender:
         if self.df[self.df["video_id"] == video_id].shape[0] == 0:
             new_line = pd.DataFrame([video_info])
             self.df = pd.concat([self.df, new_line], ignore_index=True)
+            self.video_info = self.df.to_dict(orient="list")
+            self.info_idx = [i for i in range(len(self.video_info['video_id']))]
+            rd.shuffle(self.info_idx)
             self.df.to_csv("video_info_hw_created_nona.csv", index=False)
 
 
