@@ -25,9 +25,10 @@ def recommend_video_v1():
     
     input_data = request.get_json()
     try:
-        video_info_list = recommender_v1.reccommend(input_data)
-        video_id_list = [video_info['video_id'] for video_info in video_info_list]
-        return {"video_id_list": video_id_list, "code": 200}
+        video_info_list = recommender_v1.recommend(input_data)
+        video_id_list = [video_info['id'] for video_info in video_info_list]
+        title_list = [video_info['title'] for video_info in video_info_list]
+        return {"video_id_list": video_id_list, "code": 200, "title_list": title_list}
     except Exception as e:
         print (e)
         return {"code": -1, "video_id_list": []}
@@ -45,4 +46,4 @@ def update_recommender_video_info():
 if __name__ == "__main__":
     app.run(host='0.0.0.0',
       port=5000,
-      debug=False)
+      debug=True)
