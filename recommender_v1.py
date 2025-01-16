@@ -45,6 +45,8 @@ class ContinuousRecaller(Recaller):
         recall_videos = []
         user_behavior_info = input_data["user_behavior_info"]
         recent_watch_video_list = user_behavior_info.get("recent_watch_video_list", [])
+        if recent_watch_video_list is None:
+            recent_watch_video_list = []
         for watched_video in recent_watch_video_list:
             if watched_video["watch_complete"]:
                 series_videos = json.loads(yepzan_redis.get("series_videos_{}".format(watched_video["video_info"]["series_name"])))
@@ -52,7 +54,11 @@ class ContinuousRecaller(Recaller):
                     recall_videos.append(series_videos[watched_video["video_info"]["series_sequence"] + 1])
         
         recent_like_list = user_behavior_info.get("recent_like_video_list", [])
+        if recent_like_list is None:
+            recent_like_list = []
         recent_favorite_list = user_behavior_info.get("recent_favorite_video_list", [])
+        if recent_favorite_list is None:
+            recent_favorite_list = []
         like_favorite_video_list = recent_like_list + recent_favorite_list
         for video in like_favorite_video_list:
             series_videos = json.loads(yepzan_redis.get("series_videos_{}".format(video["series_name"])))
@@ -86,6 +92,8 @@ class SeriesRecaller(Recaller):
         recall_videos = []
         user_behavior_info = input_data["user_behavior_info"]
         recent_watch_video_list = user_behavior_info.get("recent_watch_video_list", [])
+        if recent_watch_video_list is None:
+            recent_watch_video_list = []
         for watched_video in recent_watch_video_list:
             if watched_video["watch_complete"]:
                 series_videos = json.loads(yepzan_redis.get("series_videos_{}".format(watched_video["video_info"]["series_name"])))
@@ -93,7 +101,11 @@ class SeriesRecaller(Recaller):
                 recall_videos += series_videos[:self.series_recall_count]
         
         recent_like_list = user_behavior_info.get("recent_like_video_list", [])
+        if recent_like_list is None:
+            recent_like_list = []
         recent_favorite_list = user_behavior_info.get("recent_favorite_video_list", [])
+        if recent_favorite_list is None:
+            recent_favorite_list = []
         like_favorite_video_list = recent_like_list + recent_favorite_list
         for video in like_favorite_video_list:
             series_videos = json.loads(yepzan_redis.get("series_videos_{}".format(video["series_name"])))
@@ -132,15 +144,19 @@ class RecommenderV1:
         recall_result_dict = {}
         # import pdb;pdb.set_trace()
         for recaller_name in self.recaller_dict.keys():
-            recall_result = self.recaller_dict[recaller_name].recall(input_data)
-            filted_recall_result = []
-            for video in recall_result:
-                if video["id"] not in recent_watch_videoid_set:
-                    filted_recall_result.append(video)
-            recall_result_dict[recaller_name] = filted_recall_result
+            try:
+                recall_result = self.recaller_dict[recaller_name].recall(input_data)
+                filted_recall_result = []
+                for video in recall_result:
+                    if video["id"] not in recent_watch_videoid_set:
+                        filted_recall_result.append(video)
+                recall_result_dict[recaller_name] = filted_recall_result
+            except Exception as e:
+                print (str(e))
+                recall_result_dict[recaller_name] = []
             # import pdb;pdb.set_trace()
-        title_list = [video["title"] for video in recall_result_dict["latest"]]
-        print (title_list)
+        # title_list = [video["title"] for video in recall_result_dict["latest"]]
+        # print (title_list)
         
         # 定制用户：全部返回定制内容
         # 非定制非初级用户：20%的最新内容+ 80%的（连续内容+系列内容）
