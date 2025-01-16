@@ -33,8 +33,8 @@ class CustomizedRecaller(Recaller):
             customize_videos = json.loads(yepzan_redis.get("customize_videos_{}".format(invite_code)))
             end_time = time.time()
             print ("latest get dur {}".format(end_time - start_time))
-            rd.shuffle(customize_videos[invite_code])
-            return customize_videos[invite_code][:self.recall_count]
+            rd.shuffle(customize_videos)
+            return customize_videos[:self.recall_count]
         except:
             return []
 

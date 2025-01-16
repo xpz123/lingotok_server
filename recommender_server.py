@@ -22,7 +22,6 @@ def recommend_video():
 
 @app.route('/recommend_video_v1', methods=["POST"])
 def recommend_video_v1():
-    
     input_data = request.get_json()
     try:
         video_info_list = recommender_v1.recommend(input_data)
