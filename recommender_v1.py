@@ -114,7 +114,14 @@ class SeriesRecaller(Recaller):
         
         rd.shuffle(recall_videos)
         return recall_videos[:self.recall_count]
-
+class RandomRecaller(Recaller):
+    def __init__(self):
+        self.recall_count = 10
+    def recall(self, input_data):
+        all_videos = json.loads(yepzan_redis.get("random_videos"))
+        rd.shuffle(all_videos)
+        return all_videos[:self.recall_count]
+    
 class Ranker:
     def __init__(self):
         pass
@@ -124,10 +131,11 @@ class Ranker:
 
 class RecommenderV1:
     def __init__(self):
-        self.recaller_dict = {"latest": LatestRecaller(), "customized": CustomizedRecaller(), "continuous": ContinuousRecaller(), "series": SeriesRecaller(), "level": LevelRecaller()}
+        self.recaller_dict = {"latest": LatestRecaller(), "customized": CustomizedRecaller(), "continuous": ContinuousRecaller(), "series": SeriesRecaller(), "level": LevelRecaller(), "random": RandomRecaller()}
         # self.ranker = Ranker()
         self.latest_ratio = 0.2
         self.primary_ratio = 0.2
+        self.random_ratio = 0.2
     
     def fetch_recent_watched_videos(self, user_behavior_info):
         recent_watch_videoid_set = set()
@@ -171,10 +179,15 @@ class RecommenderV1:
                 print (str(e))
                 recall_result_dict[recaller_name] = []
         
+        # v0.1(已废弃)
         # 定制用户：全部返回定制内容
         # 非定制非初级用户：20%的最新内容+ 80%的（连续内容+系列内容）
         # 非定制初级用户： 20%的最新内容 + 20%的初级内容 + 60%的（连续内容+系列内容）
         # 如果上述内容无法填满size，则随机填充最新内容
+        # v0.2(最新)
+        # 非定制非初级用户：20%最新内容 + 20% 随机全量内容 + 60%连续内容+系列内容
+        # 非定制初级用户：20%最新内容 + 20%初级内容 + 20% 随机全量内容 + 40%连续内容+系列内容
+        # 如果上述内容无法填满size，则随机填充库中内容
         rank_result += recall_result_dict["customized"]
         if len(rank_result) > size:
             rd.shuffle(rank_result)
@@ -182,6 +195,7 @@ class RecommenderV1:
         if input_data["user_info"]["level"] <= 1:
             rank_result += recall_result_dict["level"][:(int(size * self.primary_ratio))]
         rank_result += recall_result_dict["latest"][:(int(size * self.latest_ratio))]
+        rank_result += recall_result_dict["random"][:(int(size * self.random_ratio))]
         rank_result += recall_result_dict["continuous"]
         if len(rank_result) > size:
             rank_result = rank_result[:size]
@@ -194,7 +208,8 @@ class RecommenderV1:
             rd.shuffle(rank_result)
             return rank_result[:size]
         
-        rank_result += recall_result_dict["latest"][(int(size * self.latest_ratio)):]
+        # rank_result += recall_result_dict["latest"][(int(size * self.latest_ratio)):]
+        rank_result += recall_result_dict["random"][(int(size * self.random_ratio)):]
         if len(rank_result) > size:
             rank_result = rank_result[:size]
             rd.shuffle(rank_result)
