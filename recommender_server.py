@@ -1,6 +1,8 @@
 from recommender import Recommender
 from recommender_v1 import RecommenderV1
 from flask import Flask, request
+import uuid
+# from wsgiref.simple_server import make_server
 
 recommender = Recommender()
 recommender_v1 = RecommenderV1()
@@ -22,15 +24,18 @@ def recommend_video():
 
 @app.route('/recommend_video_v1', methods=["POST"])
 def recommend_video_v1():
+    # Generate reqid
+    req_id = str(uuid.uuid4())
     input_data = request.get_json()
+    input_data["req_id"] = req_id
     try:
         video_info_list = recommender_v1.recommend(input_data)
         video_id_list = [video_info['id'] for video_info in video_info_list]
         title_list = [video_info['title'] for video_info in video_info_list]
-        return {"video_id_list": video_id_list, "code": 200, "title_list": title_list}
+        return {"video_id_list": video_id_list, "code": 200, "title_list": title_list, "req_id": req_id}
     except Exception as e:
         print (e)
-        return {"code": -1, "video_id_list": []}
+        return {"code": -1, "video_id_list": [], "req_id": req_id}
 
 @app.route('/update_recommender_video_info', methods=["POST"])
 def update_recommender_video_info():
@@ -46,3 +51,5 @@ if __name__ == "__main__":
     app.run(host='0.0.0.0',
       port=5000,
       debug=False)
+    # http_server = make_server('127.0.0.1', 5000, app)
+    # http_server.serve_forever()

@@ -2,7 +2,23 @@ import redis
 import json
 import random as rd
 import time
+import logging
+import logging.handlers
+import os
 
+log_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+if not os.path.exists("logs"):
+    os.makedirs("logs")
+log_handler = logging.handlers.TimedRotatingFileHandler(
+    'logs/recommender.log',  # 日志文件名
+    when='midnight',  # 每天午夜切割
+    interval=1,  # 每天切割一次
+    backupCount=50  # 保留最近7个日志文件
+)
+log_handler.setFormatter(log_formatter)
+logger = logging.getLogger('RecommenderLogger')
+logger.setLevel(logging.DEBUG)  # 设置日志级别
+logger.addHandler(log_handler)
 
 yepzan_redis = redis.StrictRedis(host="192.168.0.120", port=6379, password="Lingotok123!")
 # yepzan_redis = redis.StrictRedis(host="101.46.56.32", port=6379, password="Lingotok123!")
@@ -158,6 +174,7 @@ class RecommenderV1:
 
         size = input_data["size"]
         size = min(20, size)
+        req_id = input_data["req_id"]
 
         user_behavior_info = input_data["user_behavior_info"]
 
@@ -167,17 +184,27 @@ class RecommenderV1:
         rank_result = []
         recall_result_dict = {}
 
+        recalling_latency = dict()
         for recaller_name in self.recaller_dict.keys():
             try:
+                start_time = time.time()
                 recall_result = self.recaller_dict[recaller_name].recall(input_data)
+                recall_end_time = time.time()
+                recalling_latency[recaller_name] = {}
+                recalling_latency[recaller_name]["recall_latency"] = recall_end_time - start_time
                 filted_recall_result = []
                 for video in recall_result:
                     if video["id"] not in recent_watch_videoid_set:
                         filted_recall_result.append(video)
                 recall_result_dict[recaller_name] = filted_recall_result
+                deduplication_end_time = time.time()
+                recalling_latency[recaller_name]["deduplication_latency"] = deduplication_end_time - recall_end_time
             except Exception as e:
                 print (str(e))
                 recall_result_dict[recaller_name] = []
+        
+        recalling_latency["req_id"] = req_id
+        logger.info(json.dumps(recalling_latency))
         
         # v0.1(已废弃)
         # 定制用户：全部返回定制内容
