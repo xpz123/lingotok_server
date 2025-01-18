@@ -59,7 +59,7 @@ class RecommendVideoRequest(BaseModel):
 
 
 @app.post('/recommend_video_v1')
-def recommend_video_v1(input_data: RecommendVideoRequest):
+async def recommend_video_v1(input_data: RecommendVideoRequest):
     # Generate reqid
     req_id = str(uuid.uuid4())
     try:

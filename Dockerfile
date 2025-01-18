@@ -14,4 +14,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 EXPOSE 5000
 
 # 启动服务
-CMD ["python", "recommender_server.py"]
+#CMD ["python", "recommender_server.py"]
+CMD ["uvicorn", "recommender_fastapi_server:app", "--host", "0.0.0.0", "--port", "5000", "--workers", "4"]
