@@ -26,17 +26,35 @@ import os
 # yepzan_redis = redis.StrictRedis(host="192.168.0.120", port=6379, password="Lingotok123!")
 # yepzan_redis = redis.StrictRedis(host="101.46.56.32", port=6379, password="101.46.56.32")
 
-async def create_pool():
-    # return await from_url("redis://101.46.56.32:6379", password='Lingotok123!', decode_responses=True)
-    return await from_url("redis://192.168.0.120:6379", password='Lingotok123!', decode_responses=True)
+redis_pool = None
+async def init_redis_pool():
+    """初始化全局 Redis 连接池"""
+    global redis_pool
+    redis_pool = await from_url(
+        "redis://192.168.0.120:6379",
+        password='Lingotok123!',
+        decode_responses=True
+    )
+
+async def close_redis_pool():
+    if redis_pool:
+        await redis_pool.close()
 
 async def get_redis(key):
-    pool = await create_pool()
-    value = await pool.get(key)
-    await pool.close()
-    return value
+    """从全局连接池中获取 Redis 数据"""
+    if redis_pool is None:
+        raise RuntimeError("Redis pool is not initialized. Call init_redis_pool() first.")
+    return await redis_pool.get(key)
 
-
+# async def create_pool():
+#     # return await from_url("redis://101.46.56.32:6379", password='Lingotok123!', decode_responses=True)
+#     return await from_url("redis://192.168.0.120:6379", password='Lingotok123!', decode_responses=True)
+#
+# async def get_redis(key):
+#     pool = await create_pool()
+#     value = await pool.get(key)
+#     await pool.close()
+#     return value
 
 class Recaller:
     def __init__(self):
