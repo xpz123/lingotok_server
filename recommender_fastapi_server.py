@@ -7,6 +7,7 @@ from typing import Optional, Union, List
 import uvicorn
 from fastapi import FastAPI, Body
 from pydantic import BaseModel, HttpUrl
+import asyncio
 
 recommender = Recommender()
 recommenderv1_1 = RecommenderV1_1()
@@ -64,10 +65,11 @@ async def recommend_video_v1(input_data: RecommendVideoRequest):
     req_id = str(uuid.uuid4())
     try:
         input_data.req_id = req_id
-        video_info_list = recommenderv1_1.recommend(input_data)
+        video_info_list = await recommenderv1_1.recommend(input_data)
         video_id_list = [video_info['id'] for video_info in video_info_list]
         title_list = [video_info['title'] for video_info in video_info_list]
         return {"video_id_list": video_id_list, "code": 200, "title_list": title_list, "req_id": req_id}
+        return {"req_id": req_id}
     except Exception as e:
         print (e)
         return {"code": -1, "video_id_list": [], "req_id": req_id}
