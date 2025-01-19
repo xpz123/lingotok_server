@@ -2,7 +2,7 @@ from redis.asyncio import Redis, from_url
 
 import asyncio
 
-import json
+import ujson
 import random as rd
 import time
 import logging
@@ -67,7 +67,7 @@ class LatestRecaller(Recaller):
     async def recall(self, input_data):
         # start_time = time.time()
         redis_data = await get_redis("latest_videos")
-        latest_videos = json.loads(redis_data)
+        latest_videos = ujson.loads(redis_data)
         # end_time = time.time()
         rd.shuffle(latest_videos)
         return latest_videos[:self.recall_count]
@@ -81,7 +81,7 @@ class CustomizedRecaller(Recaller):
         try:
             start_time = time.time()
             customize_videos_str = await get_redis("customize_videos_{}".format(invite_code))
-            customize_videos = json.loads(customize_videos_str)
+            customize_videos = ujson.loads(customize_videos_str)
             end_time = time.time()
             # print ("latest get dur {}".format(end_time - start_time))
             rd.shuffle(customize_videos)
@@ -101,7 +101,7 @@ class ContinuousRecaller(Recaller):
         for watched_video in recent_watch_video_list:
             if watched_video.watch_complete:
                 series_videos_str = await get_redis("series_videos_{}".format(watched_video.video_info.series_name))
-                series_videos = json.loads(series_videos_str)
+                series_videos = ujson.loads(series_videos_str)
                 if len(series_videos) < (watched_video.video_info.series_sequence + 1):
                     recall_videos.append(series_videos[watched_video.video_info.series_sequence + 1])
         
@@ -114,7 +114,7 @@ class ContinuousRecaller(Recaller):
         like_favorite_video_list = recent_like_list + recent_favorite_list
         for video in like_favorite_video_list:
             series_videos_str = await get_redis("series_videos_{}".format(video.video_info.series_name))
-            series_videos = json.loads(series_videos_str)
+            series_videos = ujson.loads(series_videos_str)
             if len(series_videos) < (video.video_info.series_sequence + 1):
                 recall_videos.append(series_videos[video.video_info.series_sequence + 1])
         
@@ -131,7 +131,7 @@ class LevelRecaller(Recaller):
             return []
         start_time = time.time()
         hsk_videos_str = await get_redis("customize_videos_HSK_DIY")
-        hsk_videos = json.loads(hsk_videos_str)
+        hsk_videos = ujson.loads(hsk_videos_str)
         end_time = time.time()
         # print ("latest get dur {}".format(end_time - start_time))
         
@@ -151,7 +151,7 @@ class SeriesRecaller(Recaller):
         for watched_video in recent_watch_video_list:
             if watched_video.watch_complete:
                 series_videos_str = await get_redis("series_videos_{}".format(watched_video.video_info.series_name))
-                series_videos = json.loads(series_videos_str)
+                series_videos = ujson.loads(series_videos_str)
                 rd.shuffle(series_videos)
                 recall_videos += series_videos[:self.series_recall_count]
         
@@ -164,7 +164,7 @@ class SeriesRecaller(Recaller):
         like_favorite_video_list = recent_like_list + recent_favorite_list
         for video in like_favorite_video_list:
             series_videos_str = await get_redis("series_videos_{}".format(video.video_info.series_name))
-            series_videos = json.loads(series_videos_str)
+            series_videos = ujson.loads(series_videos_str)
             rd.shuffle(series_videos)
             recall_videos += series_videos[:self.series_recall_count]
         
@@ -175,7 +175,7 @@ class RandomRecaller(Recaller):
         self.recall_count = 10
     async def recall(self, input_data):
         random_videos_str = await get_redis("random_videos")
-        all_videos = json.loads(random_videos_str)
+        all_videos = ujson.loads(random_videos_str)
         rd.shuffle(all_videos)
         return all_videos[:self.recall_count]
     
@@ -191,7 +191,7 @@ class RecommenderV1_1:
         self.recaller_dict = {"latest": LatestRecaller(), "customized": CustomizedRecaller(), "continuous": ContinuousRecaller(), "series": SeriesRecaller(), "level": LevelRecaller(), "random": RandomRecaller()}
         # self.ranker = Ranker()
         self.latest_ratio = 0.2
-        self.primary_ratio = 0.2
+        self.primary_ratio = 0.4
         self.random_ratio = 0.2
     
     def fetch_recent_watched_videos(self, user_behavior_info):
@@ -254,6 +254,8 @@ class RecommenderV1_1:
         # 非定制非初级用户：20%最新内容 + 20% 随机全量内容 + 60%连续内容+系列内容
         # 非定制初级用户：20%最新内容 + 20%初级内容 + 20% 随机全量内容 + 40%连续内容+系列内容
         # 如果上述内容无法填满size，则随机填充库中内容
+        # v0.21(最新)
+        # 基于v0.21调整：非定制初级用户：20%最新内容 + 40%初级内容 + 20% 随机全量内容 + 20%连续内容+系列内容
         rank_result += recall_result_dict["customized"]
         if len(rank_result) > size:
             rd.shuffle(rank_result)

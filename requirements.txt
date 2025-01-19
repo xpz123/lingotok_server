@@ -33,3 +33,4 @@ redis==5.1.1
 gunicorn==23.0.0
 uvicorn==0.34.0
 fastapi==0.115.6
+ujson==5.10.0
