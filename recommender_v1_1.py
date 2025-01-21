@@ -261,6 +261,8 @@ class RecommenderV1_1:
                         watched_video_list = list(reversed(watched_video_list))
                         recall_result_dict["customized"] = not_watched_video_list + watched_video_list
                         break
+                    else:
+                        recall_result_dict["customized"] = []
                 else:
                     # start_time = time.time()
                     recall_result = await self.recaller_dict[recaller_name].recall(input_data)
