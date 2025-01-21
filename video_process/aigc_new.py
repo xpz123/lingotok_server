@@ -4,8 +4,10 @@ import pysrt
 import re
 from tqdm import tqdm
 import pandas as pd
-os.environ["IMAGEIO_FFMPEG_EXE"] = "/opt/homebrew/Cellar/ffmpeg/7.1_3/bin/ffmpeg"
-from moviepy.editor import VideoFileClip, AudioFileClip, TextClip, CompositeVideoClip
+os.environ["IMAGEIO_FFMPEG_EXE"] = "/opt/homebrew/Cellar/ffmpeg/7.1_4/bin/ffmpeg"
+from moviepy.editor import VideoFileClip, AudioFileClip, TextClip, CompositeVideoClip, ImageClip
+from moviepy.config import change_settings
+change_settings({"IMAGEMAGICK_BINARY": "/opt/homebrew/Cellar/imagemagick/7.1.1-43/bin/magick"})
 # from moviepy.config import change_settings
 # change_settings({"FFMPEG_BINARY": "/opt/homebrew/Cellar/ffmpeg/7.1_3/bin/ffmpeg"})
 from volcengine.visual.VisualService import VisualService
@@ -16,7 +18,9 @@ from video_processor import VideoProcessor, milliseconds_to_time_string
 from translator import translate_text2ar
 import shutil
 from vod_huoshan_util import upload_media
-
+from datetime import datetime
+from bidi.algorithm import get_display
+import arabic_reshaper
 
 visual_service = VisualService()
 visual_service.set_ak('AKLTOTgzODg1Y2FiNDI5NGE3Mzk3MWEzYzJlODE3MDk2MzQ')
@@ -55,22 +59,22 @@ def call_huoshan_text2image(prompt, image_file):
 
 def cut_sentences(ori_file, sents_file):
     lines = open(ori_file).readlines()
-    text = " ".join(lines).replace("\n", " ")
-    print (text)
-    # 定义更复杂的正则表达式以处理引号和省略号
-    pattern = r'(?<=[。！？?])\s*'
-    sentences = re.split(pattern, text)
+    # text = " ".join(lines).replace("\n", " ")
+    # print (text)
+    # # 定义更复杂的正则表达式以处理引号和省略号
+    # pattern = r'(?<=[。！？?])\s*'
+    # sentences = re.split(pattern, text)
     
     # 进一步处理引号内的内容
-    sentences = [s.strip() for s in sentences if s.strip()]
+    # sentences = [s.strip() for s in sentences if s.strip()]
 
     file_list = list()
     sent_list = list()
     res = list()
-    for idx, sent in enumerate(sentences):
-        sent_list.append(sent)
-        file_list.append(ori_file.split("/")[-1].replace(".txt", "") + "_sent{}.txt".format(idx))
-        res.append((ori_file.split("/")[-1].replace(".txt", "") + "_sent{}".format(idx), sent))
+    for idx, sent in enumerate(lines):
+        sent_list.append(sent.strip())
+        file_list.append(ori_file.split("/")[-1].replace(".txt", "") + "_sent{}.txt".format(idx+1))
+        res.append((ori_file.split("/")[-1].replace(".txt", "") + "_sent{}".format(idx+1), sent))
     tmp_dcit = {"filename": file_list, "script": sent_list}
     df = pd.DataFrame(tmp_dcit)
     df.to_csv(sents_file, index=False)
@@ -115,9 +119,16 @@ def add_audio_to_video(video_path, audio_path, output_path):
     audio = AudioFileClip(audio_path)
     # 将音频添加到视频中
     video_with_audio = video.set_audio(audio)
-    
+
+    image = ImageClip("/Users/tal/work/lingtok_server/video_process/沙特女子Demo/初级汉语/logo.png")
+    image = image.set_duration(video.duration).set_position(("right", "bottom"))
+
+    video_with_subtitles = CompositeVideoClip([video_with_audio]  + [image])
+
     # 保存合并后的视频为新文件
-    video_with_audio.write_videofile(output_path, codec="libx264", audio_codec="aac")
+    video_with_subtitles.write_videofile(output_path, codec="libx264", audio_codec="aac")
+
+    
 
 def merge_audios(audio_list, output_audio, sil_dur=300):
     audio_dur_dict = dict()
@@ -189,7 +200,7 @@ def create_video(sents_csv, imgs_dir, audio_dir, video_dir):
     img_list = list()
     for i in range(df.shape[0]):
         filename = df.iloc[i]["filename"]
-        img_path = os.path.join(imgs_dir, filename.replace(".txt", ".png"))
+        img_path = os.path.join(imgs_dir, filename.replace(".txt", ".png")+ ".png")
         print (img_path)
         img_list.append(img_path)
         assert os.path.exists(img_path)
@@ -208,13 +219,23 @@ def create_video(sents_csv, imgs_dir, audio_dir, video_dir):
 
 
 
-def create_subtitle_clip(txt1, txt2, start, end, fontsize=24):
+def create_subtitle_clip(txt1, txt2, start, end, fontsize=30):
     """创建包含两行字幕的文本片段"""
     combined_text = f"{txt1}\n{txt2}"  # 将两行文本合并
-    return (TextClip(combined_text, fontsize=fontsize, color='white', bg_color='black', size=(640, None))
-            .set_position(('center', 'bottom'))
+    return (TextClip(txt1, fontsize=fontsize, color='white', bg_color='black', font="Songti-SC-Black")
+            .set_position(('center', 0.85), relative=True)
             .set_start(start)
-            .set_duration((end - start).total_seconds()))
+            .set_duration((end - start)))
+
+def create_subtitle_clip_ar(txt1, txt2, start, end, fontsize=30):
+    """创建包含两行字幕的文本片段"""
+    txt2 = get_display(arabic_reshaper.reshape(txt2))
+    combined_text = f"{txt1}\n{txt2}"  # 将两行文本合并
+    return (TextClip(txt2, fontsize=fontsize, color='white', bg_color='black', font="Noto Sans")
+            .set_position(('center', 0.9), relative=True)
+            .set_start(start)
+            .set_duration((end - start)))
+
 
 def add_subtitles_to_video(video_path, chinese_srt, arbic_srt, output_path):
     # 加载视频文件
@@ -229,12 +250,25 @@ def add_subtitles_to_video(video_path, chinese_srt, arbic_srt, output_path):
     for i in range(len(chinese_subtitle)):
         text1 = chinese_subtitle[i].text
         text2 = arbic_subtitle[i].text
-        start = chinese_subtitle[i].start.to_time()
-        end = chinese_subtitle[i].end.to_time()
+        start_time = chinese_subtitle[i].start
+        start_time_ms = (start_time.hours * 3600000 + 
+                     start_time.minutes * 60000 + 
+                     start_time.seconds * 1000 + 
+                     start_time.milliseconds)
+        start = float(start_time_ms) / float(1000)
+        end_time = chinese_subtitle[i].end
+        end_time_ms = (end_time.hours * 3600000 + 
+                   end_time.minutes * 60000 + 
+                   end_time.seconds * 1000 + 
+                   end_time.milliseconds)
+        end = float(end_time_ms) / float(1000)
         subtitle_clips.append(create_subtitle_clip(text1, text2, start, end))
+        subtitle_clips.append(create_subtitle_clip_ar(text1, text2, start, end))
 
+    image = ImageClip("/Users/tal/work/lingtok_server/video_process/沙特女子Demo/初级汉语/logo.png")
+    image = image.set_duration(video.duration).set_position(("right", "bottom"))
     # 合成视频与字幕
-    video_with_subtitles = CompositeVideoClip([video] + subtitle_clips)
+    video_with_subtitles = CompositeVideoClip([video] + subtitle_clips + [image])
 
     # 保存合成后的视频
     video_with_subtitles.write_videofile(output_path, codec="libx264", audio_codec="aac")
@@ -268,55 +302,61 @@ def create_aigc_csv(ori_file_list, out_csv_file):
 if __name__ == '__main__':
     ori_file_list = []
     
-    ori_file_list.append("沙特女子Demo/Dr. Asmac材料1/合成文本/lesson1-part2.txt")
-    ori_file_list.append("沙特女子Demo/Dr. Asmac材料1/合成文本/lesson1-part3.txt")
-    ori_file_list.append("沙特女子Demo/Dr. Asmac材料1/合成文本/lesson1-part4.txt")
-    ori_file_list.append("沙特女子Demo/Dr. Asmac材料1/合成文本/lesson1-part5.txt")
-    ori_file_list.append("沙特女子Demo/Dr. Asmac材料1/合成文本/lesson2-part1.txt")
-    ori_file_list.append("沙特女子Demo/Dr. Asmac材料1/合成文本/lesson2-part2.txt")
-    ori_file_list.append("沙特女子Demo/Dr. Asmac材料1/合成文本/lesson2-part3.txt")
-    ori_file_list.append("沙特女子Demo/Dr. Asmac材料1/合成文本/lesson3-part1.txt")
-    ori_file_list.append("沙特女子Demo/Dr. Asmac材料1/合成文本/lesson3-part2.txt")
-    ori_file_list.append("沙特女子Demo/Dr. Asmac材料1/合成文本/lesson3-part3.txt")
-    ori_file_list.append("沙特女子Demo/Dr. Asmac材料1/合成文本/lesson3-part4.txt")
-    ori_file_list.append("沙特女子Demo/Dr. Asmac材料1/合成文本/lesson4-part1.txt")
-    ori_file_list.append("沙特女子Demo/Dr. Asmac材料1/合成文本/lesson4-part2.txt")
-    ori_file_list.append("沙特女子Demo/Dr. Asmac材料1/合成文本/lesson4-part3.txt")
-    ori_file_list.append("沙特女子Demo/Dr. Asmac材料1/合成文本/lesson4-part4.txt")
-    ori_file_list.append("沙特女子Demo/Dr. Asmac材料1/合成文本/lesson5-part1.txt")
-    ori_file_list.append("沙特女子Demo/Dr. Asmac材料1/合成文本/lesson5-part2.txt")
-    ori_file_list.append("沙特女子Demo/Dr. Asmac材料1/合成文本/lesson5-part3.txt")
-    ori_file_list.append("沙特女子Demo/Dr. Asmac材料1/合成文本/lesson5-part4.txt")
+    ori_file_list.append("/Users/tal/work/lingtok_server/video_process/沙特女子Demo/初级汉语/lesson1/lesson1.txt")
 
-    create_aigc_csv(ori_file_list, "沙特女子Demo/DR_1.csv")
-    import pdb
-    pdb.set_trace()
-    audio_dir = "沙特女子Demo/Dr. Asmac材料1/合成文本/Xiaoqiu"
-    for ori_file in ori_file_list:
-        root_dir = ori_file.replace(".txt", "")
-        sents_file = os.path.join(root_dir, ori_file.split("/")[-1].replace(".txt", "_sents.csv"))
-        cut_sentences(ori_file, sents_file)
-        # import shutil
-        # shutil.copy2(sents_file, "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/Dr. Asmac材料1/合成文本/audio_csv")
-        root_dir = ori_file.replace(".txt", "")
-        if not os.path.exists(root_dir):
-            os.makedirs(root_dir)
-        sents_file = os.path.join(root_dir, ori_file.split("/")[-1].replace(".txt", "_sents.csv"))
-        sents = cut_sentences(ori_file, sents_file)
+    # create_aigc_csv(ori_file_list, "沙特女子Demo/DR_1.csv")
+    # import pdb
+    # pdb.set_trace()
+    ori_excel_file = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/初级汉语/0111_PNU_初级口语-1_君_Easylove/PNU数据标记_Easylove.xls"
+    sents_file = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/初级汉语/PNU_0113/lesson5.csv"
+    df = pd.read_excel(ori_excel_file)
 
+    df_list = df.values.tolist()
+    columns = ["filename", "script"]
+    df_new_list = list()
+    # for i in range(73, 76):
+    # for i in range(58, 72):
+    # for i in range(46, 57):
+    # for i in range(35, 41):
+    for i in range(20, 34):
+    # for i in range()
+        tmp_list = list()
+        tmp_list.append(df.iloc[i]["图片"].replace("png", "txt"))
+        tmp_list.append(df.iloc[i]["语句"])
+        df_new_list.append(tmp_list)
+    df_new = pd.DataFrame(df_new_list, columns=columns)
+    df_new.to_csv(sents_file)
 
-        video_dir = os.path.join(root_dir, "video")
-        if not os.path.exists(video_dir):
-            os.makedirs(video_dir)
-        print (audio_dir)
-        print (video_dir)
+    audio_dir = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/初级汉语/PNU_audio"
 
-        final_video_path = os.path.join(video_dir, sents_file.split("/")[-1].replace(".csv", ".mp4"))
+    root_dir = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/初级汉语/PNU_0113"
+    video_dir = os.path.join(root_dir, "video")
+    image_dir = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/初级汉语/0111_PNU_初级口语-1_君_Easylove/0111_PNU_初级口语-1_君_Easylove 照片"
+    # for ori_file in ori_file_list:
+    #     root_dir = "/".join(ori_file.split("/")[:-1])
+    #     sents_file = ori_file.replace(".txt", "_sents.csv")
+    #     cut_sentences(ori_file, sents_file)
+    #     import pdb; pdb.set_trace()
+    #     # import shutil
+    #     # shutil.copy2(sents_file, "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/Dr. Asmac材料1/合成文本/audio_csv")
+    #     if not os.path.exists(root_dir):
+    #         os.makedirs(root_dir)
+    #     sents_file = os.path.join(root_dir, ori_file.split("/")[-1].replace(".txt", "_sents.csv"))
+    #     sents = cut_sentences(ori_file, sents_file)
+
+    
+    video_dir = os.path.join(root_dir, "video")
+    if not os.path.exists(video_dir):
+        os.makedirs(video_dir)
+    print (audio_dir)
+    print (video_dir)
+
+    final_video_path = os.path.join(video_dir, sents_file.split("/")[-1].replace(".csv", ".mp4"))
         # import shutil
         # shutil.copy2(final_video_path, "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/Dr. Asmac材料1/合成文本/videos")
 
 
-        image_dir = os.path.join(root_dir, "images")
+    
         # for root, dir, files in os.walk(image_dir):
         #     for file in files:
         #         if file.endswith(".png"):
@@ -330,18 +370,19 @@ if __name__ == '__main__':
         # if not os.path.exists(image_dir):
         #     os.makedirs(image_dir)
         
-        # for filename, sent in tqdm(sents):
-        #     print ("processing {}".format(filename))
-        #     if os.path.exists(os.path.join(image_dir, filename + ".png")):
-        #         continue
-        #     try:
-        #         call_huoshan_text2image(sent, os.path.join(image_dir, filename + ".png"))
-        #     except Exception as e:
-        #         print (str(e))
-        #         print ("Failed to process {}".format(filename))
-        
-        # audio_dur_dict, final_video_path = create_video(sents_file, image_dir, audio_dir, video_dir)
-        # res = generate_subtitle(sents_file, ori_file.split("/")[-1].replace(".txt", ""), root_dir, audio_dur_dict)
+    # for filename, sent in tqdm(sents):
+    #     print ("processing {}".format(filename))
+    #     if os.path.exists(os.path.join(image_dir, filename + ".png")):
+    #         continue
+    #     try:
+    #         call_huoshan_text2image(sent, os.path.join(image_dir, filename + ".png"))
+    #     except Exception as e:
+    #         print (str(e))
+    #         print ("Failed to process {}".format(filename))
+    
+    audio_dur_dict, final_video_path = create_video(sents_file, image_dir, audio_dir, video_dir)
+    res = generate_subtitle(sents_file, sents_file.split("/")[-1].replace(".csv", ""), root_dir, audio_dur_dict)
+    add_subtitles_to_video(final_video_path, res["zh_srt"], res["ar_srt"], final_video_path.replace(".mp4", "_zh_ar.mp4"))
     
     
     

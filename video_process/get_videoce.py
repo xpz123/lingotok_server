@@ -588,7 +588,7 @@ def prep_hw_data():
                 item.append(title)
                 description = video_path.split("/")[-2]
                 item.append(description)
-                os.system("/opt/homebrew/Cellar/ffmpeg/7.1_3/bin/ffmpeg -y -loglevel error -i {} -ac 1 -ar 16000 -f wav test.wav".format(video_path.replace(" ", "\\ ").replace("&", "\\&")))
+                os.system("/opt/homebrew/Cellar/ffmpeg/7.1_4/bin/ffmpeg -y -loglevel error -i {} -ac 1 -ar 16000 -f wav test.wav".format(video_path.replace(" ", "\\ ").replace("&", "\\&")))
                 srt_res = video_processor.generate_zhsrt("",  os.path.join(srt_dir, srt_name), audio_path="test.wav", gen_ar=True)
                 os.system("rm test.wav")
                 if srt_res == None:

@@ -13,7 +13,7 @@ from tqdm import tqdm
 import jieba
 from zhon.hanzi import punctuation
 import string
-from llm_util import call_doubao_pro_128k, call_gpt4o
+from llm_util import call_doubao_pro_128k, call_gpt4o, call_doubao_pro_32k
 import random as rd
 import pandas as pd
 from pypinyin import pinyin
@@ -566,8 +566,8 @@ class VideoProcessor:
 					# print (prompt)
 					try:
 						# resp = call_doubao_pro_128k(prompt)
-						resp = call_gpt4o(prompt)
-						content_ori = resp["choices"][0]['message']['content'].replace("```json", "").replace("```", "")
+						resp = call_doubao_pro_32k(prompt)
+						content_ori = resp.replace("```json", "").replace("```", "")
 						print (content_ori)
 						res = json.loads(content_ori)
 						print (res)
@@ -600,8 +600,10 @@ class VideoProcessor:
 					print (word)
 					try:
 						prompt = "以下是一个中文句子：“{}”，如果我遮挡其中“{}”这个词之后，将该句子变成一个选择题目，其中“{}“是正确选项，而其他词则是和“{}” 不相近并且也不符合语法语义的词。请注意！给我的结果需要按照如下的json格式: {}".format(text, word, word, word, example_quiz_json)
-						resp = call_doubao_pro_128k(prompt)
-						res = json.loads(resp["choices"][0]['message']['content'])
+						# resp = call_doubao_pro_128k(prompt)
+						resp = call_doubao_pro_32k(prompt)
+						# res = json.loads(resp["choices"][0]['message']['content'])
+						res = json.loads(resp.replace("```json", "").replace("```", ""))
 						print (res)
 						if res["answer"][0] not in ["A", "B", "C", "D"]:
 							res["answer"] = "B"
@@ -620,6 +622,61 @@ class VideoProcessor:
 						print (str(e))
 						continue
 						
+		return None
+	
+	def generate_quiz_zh_tiankong_v2(self, subtitle_file):
+		# print (subtitle_file)
+		
+		subtitles = pysrt.open(subtitle_file)
+		subtitle_list = list(subtitles)
+		rd.shuffle(subtitle_list)
+
+		example_quiz ={"question": "我跟朋友分别时会说____。", "options": ["再见", "再贝", "再兄", "再兑"], "answer": "再见", "explanation": "“再见”是人们在分别时常使用的礼貌用语，而“再贝”“再兄”“再兑”并不是正确的表达，不符合日常用语习惯，所以应选“再见”。"}
+		example_quiz_json = json.dumps(example_quiz,  ensure_ascii=False)
+
+		stop_words = ["哎", "了", "的", "地", "吧", "吗", "啊", "你", "我", "他", "您", "嗯", "我们", "你们", "他们"]
+		# stop_words = []
+
+		for sub in subtitle_list:
+			# if len(sub.text) <= 5:
+			# 	continue
+			subtitle_text = sub.text.replace("\n", "。 ")
+			seg_list = jieba.cut(subtitle_text, cut_all=False)
+			text = " ".join(seg_list)
+			for word in text.split(" "):
+				if word in stop_words:
+					continue
+				if word in self.hsk_word_set:
+					# print (word)
+					prompt = "以下是一个示例：当给到一个##中文句子##：“我 跟 朋友 分别 时 会 说 再见。”，遮挡其中“再见”这个词之后，将该句子变成一个选择题目，其中“再见“是正确选项，而其余的要和正确选项有一些相似，但是非常不适合填在句子中。请注意！给我的结果需要按照如下的json格式： {}。这是一个##中文句子##：“{}”，遮挡其中“{}”这个词之后，将该句子变成一个选择题目，其中“{}“是正确选项，而其余的要和正确选项有一些相似，但是非常不适合填在句子中。请注意！给我的结果需要按照如下的json格式".format(example_quiz_json, text, word, word, word)
+					# print (prompt)
+					try:
+						# resp = call_doubao_pro_128k(prompt)
+						resp = call_doubao_pro_32k(prompt)
+						content_ori = resp.replace("```json", "").replace("```", "")
+						print (content_ori)
+						res = json.loads(content_ori)
+						print (res)
+						rd.shuffle(res["options"])
+						ans_list = ["A", "B", "C", "D"]
+						for i in range(4):
+							if res["options"][i] == res["answer"]:
+								res["answer"] = "{} {}".format(ans_list[i], res["answer"])
+								break
+						
+						if res["options"][0].find("A.") == -1:
+							res["options"][0] = "A. " + res["options"][0]
+						if res["options"][1].find("B.") == -1:
+							res["options"][1] = "B. " + res["options"][1]
+						if res["options"][2].find("C.") == -1:
+							res["options"][2] = "C. " + res["options"][2]
+						if res["options"][3].find("D.") == -1:
+							res["options"][3] = "D. " + res["options"][3]
+						# res["question"] = "下面是刚刚视频中出现过的句子，请根据视频内容，选择最合适的词填入空格处：\n{}".format(text)
+						return res
+					except Exception as e:
+						print (str(e))
+						continue
 		return None
 	
 	def translate_zh_quiz(self, quiz, gen_ar=True, gen_en=True):

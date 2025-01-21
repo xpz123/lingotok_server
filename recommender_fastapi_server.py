@@ -84,7 +84,6 @@ async def recommend_video_v1(input_data: RecommendVideoRequest):
         video_id_list = [video_info['id'] for video_info in video_info_list]
         title_list = [video_info['title'] for video_info in video_info_list]
         return {"video_id_list": video_id_list, "code": 200, "title_list": title_list, "req_id": req_id}
-        return {"req_id": req_id}
     except Exception as e:
         print(e)
         return {"code": -1, "video_id_list": [], "req_id": req_id}

@@ -150,7 +150,7 @@ class ContentTagger:
             return time.hours * 3600 + time.minutes * 60 + time.seconds + time.milliseconds / 1000.0
         try:
             video_path = video_path.replace(" ", "\\ ").replace("&", "\\&")
-            os.system("/opt/homebrew/Cellar/ffmpeg/7.1_3/bin/ffmpeg -y -loglevel error -i {} -ac 1 -ar 16000 -f wav test.wav".format(video_path))
+            os.system("/opt/homebrew/Cellar/ffmpeg/7.1_4/bin/ffmpeg -y -loglevel error -i {} -ac 1 -ar 16000 -f wav test.wav".format(video_path))
             # get duration of test.wav
             with wave.open("test.wav", "rb") as wf:
                 video_duration = wf.getnframes() / wf.getframerate()

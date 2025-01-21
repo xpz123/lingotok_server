@@ -1,6 +1,23 @@
 import requests
 import json
+from openai import OpenAI
 
+def call_doubao_pro_32k(prompt):
+    client = OpenAI(
+    api_key = "09351b42-cf23-4549-8955-d338e2dfe9b6",
+    base_url = "https://ark.cn-beijing.volces.com/api/v3",
+    )
+
+    # Non-streaming:
+    # print("----- standard request -----")
+    completion = client.chat.completions.create(
+        model = "ep-20250103165151-lsh9k",  # your model endpoint ID
+        messages = [
+            {"role": "system", "content": ""},
+            {"role": "user", "content": prompt},
+        ],
+    )
+    return (completion.choices[0].message.content)
 
 def call_doubao_pro_128k(prompt):
     url = "http://ai-service-test.tal.com/openai-compatible/v1/chat/completions"
