@@ -20,12 +20,14 @@ def update_videoinfo_recommender_withcsv(csv_file):
             print (e)
             print ("error in {}".format(df.iloc[i]["title"]))
 
-def create_video_internal(asset_id, title, duration, quiz_list, sub_list, level, audio_ratio):
+def create_video_internal(asset_id, title, duration, quiz_list, sub_list, level, audio_ratio, customize=None):
     # quiz_lang = {"language": "zh", "question": "测试问题?", "option_list": ["选项1", "选项2", "选项3", "选项4"], "answer_list": ["选项3"], "explanation": "解释"}
     # quiz = {"quiz_id": "1", "quiz_type": "single_choice", "quiz_language_list": [quiz_lang]}
     # sub_zh = {"language": "zh", "obs_object": "中文字幕.srt"}
     level = int(str(level).replace("HSK", ""))
     req = {"asset_id": asset_id, "title": title, "duration": duration, "level": level, "audio_radio": audio_ratio, "quiz_list": quiz_list, "subtitle_list": sub_list}
+    if customize is not None:
+        req["customize"] = customize
     # req_str = json.dumps(req, ensure_ascii=False)
     # print (json.dumps(req, ensure_ascii=False))
     url = "https://api.lingotok.ai/api/v1/video/create_video_info"
@@ -42,13 +44,13 @@ def convert_subtitles(zh_srt, en_srt, ar_srt, pinyin_srt):
 
 def convert_quiz(quiz):
     def find_option(option_list, answer):
-        if answer == "A":
+        if answer.strip()[0] == "A":
             return option_list[0]
-        elif answer == "B":
+        elif answer.strip()[0] == "B":
             return option_list[1]
-        elif answer == "C":
+        elif answer.strip()[0] == "C":
             return option_list[2]
-        elif answer == "D":
+        elif answer.strip()[0] == "D":
             return option_list[3]
         print ("find answer error")
         return option_list[1]
@@ -59,7 +61,7 @@ def convert_quiz(quiz):
     quiz_out = {"quiz_id": quiz["vid"], "quiz_type": "single_choice", "quiz_language_list": [quiz_zh, quiz_en, quiz_ar]}
     return quiz_out
 
-def create_with_csv(meta_file, csv_file, out_csv_file):
+def create_with_csv(meta_file, csv_file, out_csv_file, customize=None):
     lines = open(meta_file).readlines()
     quizd = dict()
     for l in lines:
@@ -95,13 +97,15 @@ def create_with_csv(meta_file, csv_file, out_csv_file):
         ar_srt = df.iloc[i]["ar_srt"]
         pinyin_srt = df.iloc[i]["pinyin_srt"]
         subtitles = convert_subtitles(zh_srt, en_srt, ar_srt, pinyin_srt)
+        import pdb;pdb.set_trace()
         quiz = convert_quiz(quizd[vid])
         dur = int(df.iloc[i]["audio_dur"] * 1000)
         level = df.iloc[i]["level"]
         asset_id = df.iloc[i]["asset_id"]
         audio_ratio = df.iloc[i]["audio_ratio"]
+        
         try:
-            resp = create_video_internal(asset_id, title, dur, [quiz], subtitles, level, audio_ratio)
+            resp = create_video_internal(asset_id, title, dur, [quiz], subtitles, level, audio_ratio, customize=customize)
             if resp["code"] == 200 and resp["message"] == "success":
                 if has_video_id:
                     df_list[i][videoid_idx] = resp["data"]["video_info"]["video_id"]

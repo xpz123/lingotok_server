@@ -23,6 +23,16 @@ from aigc_new import merge_audios, add_audio_to_video
 import copy
 from process_pnu_words import generate_subtitle
 import json
+import shutil
+
+def convert_imagedir(image_dir):
+    # cp jpg to png
+    for root, dirs, files in os.walk(image_dir):
+        for file in files:
+            if file.endswith(".jpg"):
+                jpg_path = os.path.join(root, file)
+                png_path = jpg_path.replace(".jpg", ".png")
+                shutil.copy(jpg_path, png_path)
 
 def generate_quiz(srt_csv, output_csv, quiz_jsonl):
     video_processor = VideoProcessor()
@@ -136,8 +146,11 @@ def create_aigc_csv(ori_file_list, out_csv_file):
     df = pd.DataFrame(df_list, columns=columns)
     df.to_csv(out_csv_file, index=False)
 
-def split_pnu_csv(ori_csv):
-    df = pd.read_csv(ori_csv)
+def split_pnu_csv(ori_csv, ori_excel=None):
+    if ori_excel:
+        df = pd.read_excel(ori_excel)
+    else:
+        df = pd.read_csv(ori_csv)
     pre_sid = df.iloc[0]["对话编号"]
     all_sent_list = list()
     sent_list = list()
@@ -154,8 +167,11 @@ def split_pnu_csv(ori_csv):
             pre_sid = sid
         sent_list.append((speak_id, script))
         # AB050-1-186-1.png
+        if "图片" not in df.columns:
+            image_list.append("{}-{}-{}-{}.png".format(df.iloc[i]["index"], df.iloc[i]["行数"], df.iloc[i]["页数"],speak_id))
         # image_list.append("{}-{}-{}-{}.png".format(sid, df.iloc[i]["语句编号"], df.iloc[i]["页码"], speak_id))
-        image_list.append(df.iloc[i]["图片"]+ ".png")
+        else:
+            image_list.append(df.iloc[i]["图片"]+ ".png")
     tmp_list = copy.deepcopy(sent_list)
     all_sent_list.append({"sid": sid, "data": tmp_list, "images": image_list})
     return all_sent_list
@@ -169,16 +185,21 @@ if __name__ == '__main__':
     # df.to_csv("沙特女子Demo/初级汉语/真-初级口语1+2/初级口语1/pnu1_61.csv", index=False)
     # df.to_csv("沙特女子Demo/初级汉语/初级汉语课本3/ori.csv", index=False)
     voice_dict = {1: "BV002_streaming", 2: "BV001_streaming"}
-    prefix = "初级口语1"
+    prefix = "初级口语2"
     # prefix = "pnu2"
-    root_dir = "沙特女子Demo/初级汉语/真-初级口语1+2/初级口语1"
+    # root_dir = "沙特女子Demo/初级汉语/真-初级口语1+2/初级口语1"
+    root_dir = "沙特女子Demo/初级汉语/真-初级口语1+2/初级口语2"
     # all_sent_list = split_pnu_csv("沙特女子Demo/初级汉语/初级汉语课本3/{}.csv".format(prefix))
     # audio_dir = "沙特女子Demo/初级汉语/初级汉语课本3/audios/{}".format(prefix)
     # srt_dir = "沙特女子Demo/初级汉语/初级汉语课本3/srt/{}".format(prefix)
     # video_dir = "沙特女子Demo/初级汉语/初级汉语课本3/videos/{}".format(prefix)
     # image_dir = "沙特女子Demo/初级汉语/初级汉语课本3/完整-课本3-课本3-君-睡不醒的冬三月"
 
-    all_sent_list = split_pnu_csv(os.path.join(root_dir, "pnu1_61.csv"))
+    ori_excel_file = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/初级汉语/真-初级口语1+2/初级口语2/更改后0115P1P18_v3.xlsx"
+    df = pd.read_excel(ori_excel_file)
+    # df.to_csv(os.path.join(root_dir, "chap1.csv"), index=False)
+    # all_sent_list = split_pnu_csv(os.path.join(root_dir, "pnu1_61.csv"))
+    all_sent_list = split_pnu_csv(os.path.join(root_dir, "chap1.csv"), ori_excel=ori_excel_file)
     audio_dir = os.path.join(root_dir, "audios")
     if not os.path.exists(audio_dir):
         os.makedirs(audio_dir)
@@ -189,67 +210,82 @@ if __name__ == '__main__':
     if not os.path.exists(video_dir):
         os.makedirs(video_dir)
     image_dir = os.path.join(root_dir, "images")
-    if not os.path.exists(image_dir):
-        os.makedirs(image_dir)
+    assert os.path.exists(image_dir)
+    # convert_imagedir(image_dir)
 
-    
+    skip_video = True
+    skip_quiz = True
+    skip_tag = True
+    skip_vod = False
+    skip_create = False
+    srt_csv = os.path.join(root_dir, "srt.csv")
+    quiz_csv = os.path.join(root_dir, "srt_quiz.csv")
+    quiz_jsonl = os.path.join(root_dir, "srt_quiz.jsonl")
+    tag_csv = quiz_csv.replace("_quiz", "_tag")
+    vod_csv = quiz_csv.replace("_quiz", "_vod")
+    create_csv = quiz_csv.replace("_quiz", "_create")
+
     columns = ["FileName", "title", "series_name", "customize", "zh_srt", "en_srt", "ar_srt", "pinyin_srt"]
     df_list = list()
-    for sent_list in tqdm(all_sent_list):
-        try:
-            item_list = list()
-            tmp_list = list()
-            sid = sent_list["sid"]
-            data = sent_list["data"]
-            image_list = [os.path.join(image_dir, img_name) for img_name in sent_list["images"]]
-            audio_list = list()
-            audio_name_list = list()
-            text_list = []
-            for idx, item in enumerate(data):
-                audio_name =  "{}_{}.wav".format(sid, idx)
-                audio_name_list.append("{}_{}".format(sid, idx))
-                audio_path = os.path.join(audio_dir, audio_name)
-                audio_list.append(audio_path)
-                if not os.path.exists(audio_path):
-                    generate_wav(item[1], audio_path, voice_dict.get(item[0], "BV002_streaming"), speed=0.7)
-                text_list.append(item[1])
-            merged_audio_path = os.path.join(audio_dir, "{}_merged.wav".format(sid))
-            audio_dur_dict = merge_audios(audio_list, merged_audio_path)
-            srt_res = generate_subtitle(text_list, sid, srt_dir, audio_dur_dict, audio_list=audio_name_list)
+    if not skip_video:
+        for sent_list in tqdm(all_sent_list):
+            try:
+                item_list = list()
+                tmp_list = list()
+                sid = sent_list["sid"]
+                data = sent_list["data"]
+                image_list = [os.path.join(image_dir, img_name) for img_name in sent_list["images"]]
+                audio_list = list()
+                audio_name_list = list()
+                text_list = []
+                for idx, item in enumerate(data):
+                    audio_name =  "{}_{}.wav".format(sid, idx)
+                    audio_name_list.append("{}_{}".format(sid, idx))
+                    audio_path = os.path.join(audio_dir, audio_name)
+                    audio_list.append(audio_path)
+                    if not os.path.exists(audio_path):
+                        generate_wav(item[1], audio_path, voice_dict.get(item[0], "BV002_streaming"), speed=0.7)
+                    text_list.append(item[1])
+                merged_audio_path = os.path.join(audio_dir, "{}_merged.wav".format(sid))
+                audio_dur_dict = merge_audios(audio_list, merged_audio_path)
+                srt_res = generate_subtitle(text_list, sid, srt_dir, audio_dur_dict, audio_list=audio_name_list)
 
-            video_path = os.path.join(video_dir, "{}.mp4".format(sid))
-            mute_video_path = os.path.join(video_dir, "{}_mute.mp4".format(sid))
-            if not os.path.exists(video_path):
-                images_to_video(audio_dur_dict, image_list, mute_video_path, audio_name_list=audio_name_list)
-                add_audio_to_video(mute_video_path, merged_audio_path, video_path)
-            
-            item_list += [video_path, sid, "{}-课文".format(prefix), prefix.upper(), srt_res["zh_srt"], srt_res["en_srt"], srt_res["ar_srt"], srt_res["pinyin_srt"]]
-            df_list.append(item_list)
-        except Exception as e:
-            print (e)
-            print ("error in {}".format(sent_list["sid"]))
-    df = pd.DataFrame(df_list, columns=columns)
-    srt_csv = os.path.join(root_dir, "srt.csv")
-    # df.to_csv(srt_csv, index=False)
+                video_path = os.path.join(video_dir, "{}.mp4".format(sid))
+                mute_video_path = os.path.join(video_dir, "{}_mute.mp4".format(sid))
+                if not os.path.exists(video_path):
+                    images_to_video(audio_dur_dict, image_list, mute_video_path, audio_name_list=audio_name_list)
+                    add_audio_to_video(mute_video_path, merged_audio_path, video_path)
+                
+                item_list += [video_path, sid, "{}-课文".format(prefix), prefix.upper(), srt_res["zh_srt"], srt_res["en_srt"], srt_res["ar_srt"], srt_res["pinyin_srt"]]
+                df_list.append(item_list)
+            except Exception as e:
+                import pdb;pdb.set_trace()
+                print (e)
+                print ("error in {}".format(sent_list["sid"]))
+        df = pd.DataFrame(df_list, columns=columns)
+        df.to_csv(srt_csv, index=False)
+
     # srt_csv = "沙特女子Demo/初级汉语/初级汉语课本3/{}_srt.csv".format(prefix)
     # df.to_csv("沙特女子Demo/初级汉语/初级汉语课本3/{}_srt.csv".format(prefix), index=False)
 
     # quiz_csv = "沙特女子Demo/初级汉语/初级汉语课本3/{}_quiz.csv".format(prefix)
     # quiz_jsonl = "沙特女子Demo/初级汉语/初级汉语课本3/{}_quiz.jsonl".format(prefix)
-    quiz_csv = os.path.join(root_dir, "srt_quiz.csv")
-    quiz_jsonl = os.path.join(root_dir, "srt_quiz.jsonl")
-    # generate_quiz(srt_csv, quiz_csv, quiz_jsonl)
+    if not skip_quiz:
+        generate_quiz(srt_csv, quiz_csv, quiz_jsonl)
 
-    from content_tagger import update_video_info_csv_level
-    tag_csv = quiz_csv.replace("_quiz", "_tag")
-    update_video_info_csv_level(quiz_csv, tag_csv)
+    if not skip_tag:
+        from content_tagger import update_video_info_csv_level
+        
+        update_video_info_csv_level(quiz_csv, tag_csv)
+    
+    if not skip_vod:
+        from vod_hw_util import upload_hw_withcsv
+        
+        upload_hw_withcsv(tag_csv, vod_csv)
+    
+    if not skip_create:
+        from create_video import create_with_csv, update_videoinfo_recommender_withcsv
 
-    from vod_hw_util import upload_hw_withcsv
-    vod_csv = quiz_csv.replace("_quiz", "_vod")
-    upload_hw_withcsv(tag_csv, vod_csv)
-
-    from create_video import create_with_csv, update_videoinfo_recommender_withcsv
-    # create_csv = quiz_csv.replace("_quiz", "_create")
-    # create_with_csv(quiz_jsonl, vod_csv, create_csv, customize="PNU_1")
+        create_with_csv(quiz_jsonl, vod_csv, create_csv, customize="PNU_2_1")
     # update_videoinfo_recommender_withcsv(create_csv)
 

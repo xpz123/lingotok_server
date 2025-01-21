@@ -35,6 +35,12 @@ async def init_redis_pool():
         password='Lingotok123!',
         decode_responses=True
     )
+    # redis_pool = await from_url(
+    #     "redis://101.46.56.32:6379",
+    #     password='Lingotok123!',
+    #     decode_responses=True
+    # )
+    
 
 async def close_redis_pool():
     if redis_pool:
@@ -84,7 +90,7 @@ class CustomizedRecaller(Recaller):
             customize_videos = ujson.loads(customize_videos_str)
             end_time = time.time()
             # print ("latest get dur {}".format(end_time - start_time))
-            rd.shuffle(customize_videos)
+            # rd.shuffle(customize_videos)
             return customize_videos[:self.recall_count]
         except:
             return []
@@ -211,6 +217,19 @@ class RecommenderV1_1:
         return recent_watch_videoid_set
 
     async def recommend(self, input_data):
+        # v0.1(已废弃)
+        # 定制用户：全部返回定制内容
+        # 非定制非初级用户：20%的最新内容+ 80%的（连续内容+系列内容）
+        # 非定制初级用户： 20%的最新内容 + 20%的初级内容 + 60%的（连续内容+系列内容）
+        # 如果上述内容无法填满size，则随机填充最新内容
+        # v0.2(最新)
+        # 非定制非初级用户：20%最新内容 + 20% 随机全量内容 + 60%连续内容+系列内容
+        # 非定制初级用户：20%最新内容 + 20%初级内容 + 20% 随机全量内容 + 40%连续内容+系列内容（废弃）
+        # 如果上述内容无法填满size，则随机填充库中内容
+        # v0.21(调整)
+        # 基于v0.21调整：非定制初级用户：20%最新内容 + 40%初级内容 + 20% 随机全量内容 + 20%连续内容+系列内容
+        # v0.22(增补)
+        # 如果内容为定制化内容，按顺序推送，遇到观看过的，放在推送list的最后。
         size = input_data.size
         size = min(20, size)
         req_id = input_data.req_id
@@ -226,18 +245,35 @@ class RecommenderV1_1:
         recalling_latency = dict()
         for recaller_name in self.recaller_dict.keys():
             try:
-                start_time = time.time()
-                recall_result = await self.recaller_dict[recaller_name].recall(input_data)
-                recall_end_time = time.time()
-                recalling_latency[recaller_name] = {}
-                recalling_latency[recaller_name]["recall_latency"] = recall_end_time - start_time
-                filted_recall_result = []
-                for video in recall_result:
-                    if video["id"] not in recent_watch_videoid_set:
-                        filted_recall_result.append(video)
-                recall_result_dict[recaller_name] = filted_recall_result
-                deduplication_end_time = time.time()
-                recalling_latency[recaller_name]["deduplication_latency"] = deduplication_end_time - recall_end_time
+                if recaller_name == "customized":
+                    recall_result = await self.recaller_dict[recaller_name].recall(input_data)
+                    if len(recall_result) != 0:
+                        # process customized only, rerank customized videos with recent watch videos
+                        while len(recall_result) < size:
+                            recall_result += recall_result
+                        watched_video_list = []
+                        not_watched_video_list = []
+                        for video in recall_result:
+                            if video["id"] in recent_watch_videoid_set:
+                                watched_video_list.append(video)
+                            else:
+                                not_watched_video_list.append(video)
+                        watched_video_list = list(reversed(watched_video_list))
+                        recall_result_dict["customized"] = not_watched_video_list + watched_video_list
+                        break
+                else:
+                    # start_time = time.time()
+                    recall_result = await self.recaller_dict[recaller_name].recall(input_data)
+                    # recall_end_time = time.time()
+                    # recalling_latency[recaller_name] = {}
+                    # recalling_latency[recaller_name]["recall_latency"] = recall_end_time - start_time
+                    filted_recall_result = []
+                    for video in recall_result:
+                        if video["id"] not in recent_watch_videoid_set:
+                            filted_recall_result.append(video)
+                    recall_result_dict[recaller_name] = filted_recall_result
+                    # deduplication_end_time = time.time()
+                    # recalling_latency[recaller_name]["deduplication_latency"] = deduplication_end_time - recall_end_time
             except Exception as e:
                 print (str(e))
                 recall_result_dict[recaller_name] = []
@@ -245,20 +281,10 @@ class RecommenderV1_1:
         recalling_latency["req_id"] = req_id
         # logger.info(json.dumps(recalling_latency))
         
-        # v0.1(已废弃)
-        # 定制用户：全部返回定制内容
-        # 非定制非初级用户：20%的最新内容+ 80%的（连续内容+系列内容）
-        # 非定制初级用户： 20%的最新内容 + 20%的初级内容 + 60%的（连续内容+系列内容）
-        # 如果上述内容无法填满size，则随机填充最新内容
-        # v0.2(最新)
-        # 非定制非初级用户：20%最新内容 + 20% 随机全量内容 + 60%连续内容+系列内容
-        # 非定制初级用户：20%最新内容 + 20%初级内容 + 20% 随机全量内容 + 40%连续内容+系列内容
-        # 如果上述内容无法填满size，则随机填充库中内容
-        # v0.21(最新)
-        # 基于v0.21调整：非定制初级用户：20%最新内容 + 40%初级内容 + 20% 随机全量内容 + 20%连续内容+系列内容
+        
         rank_result += recall_result_dict["customized"]
         if len(rank_result) > size:
-            rd.shuffle(rank_result)
+            # rd.shuffle(rank_result)
             return rank_result[:size]
         if input_data.user_info.level <= 1:
             rank_result += recall_result_dict["level"][:(int(size * self.primary_ratio))]
