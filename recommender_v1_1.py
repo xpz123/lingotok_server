@@ -286,8 +286,6 @@ class RecommenderV1_1:
         
         
         rank_result += recall_result_dict["customized"]
-        import json
-        print (json.dumps(recall_result_dict["customized"]))
         if len(rank_result) > size:
             # rd.shuffle(rank_result)
             return rank_result[:size]
