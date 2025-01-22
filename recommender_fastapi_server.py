@@ -31,7 +31,7 @@ class UserInfo(BaseModel):
     age: int
     gender: str
     level: int
-    interests: List[str]
+    interests: Optional[List[str]]
     goal: str
     avatar_url: Optional[str] = None
     invite_code: str

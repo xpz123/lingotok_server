@@ -24,7 +24,7 @@ import os
 # logger.addHandler(log_handler)
 
 # yepzan_redis = redis.StrictRedis(host="192.168.0.120", port=6379, password="Lingotok123!")
-# yepzan_redis = redis.StrictRedis(host="101.46.56.32", port=6379, password="101.46.56.32")
+# yepzan_redis = redis.StrictRedis(host="101.46.56.32", port=6379, password="Lingotok123!")
 
 redis_pool = None
 async def init_redis_pool():
@@ -91,7 +91,7 @@ class CustomizedRecaller(Recaller):
             end_time = time.time()
             # print ("latest get dur {}".format(end_time - start_time))
             # rd.shuffle(customize_videos)
-            return customize_videos[:self.recall_count]
+            return customize_videos
         except:
             return []
 
@@ -258,7 +258,8 @@ class RecommenderV1_1:
                                 watched_video_list.append(video)
                             else:
                                 not_watched_video_list.append(video)
-                        watched_video_list = list(reversed(watched_video_list))
+                        # watched_video_list = list(reversed(watched_video_list))
+                        rd.shuffle(watched_video_list)
                         recall_result_dict["customized"] = not_watched_video_list + watched_video_list
                         break
                     else:
@@ -285,6 +286,8 @@ class RecommenderV1_1:
         
         
         rank_result += recall_result_dict["customized"]
+        import json
+        print (json.dumps(recall_result_dict["customized"]))
         if len(rank_result) > size:
             # rd.shuffle(rank_result)
             return rank_result[:size]
