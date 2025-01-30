@@ -240,7 +240,7 @@ class RecommenderV1_1:
         # v0.22(废弃)
         # 如果内容为定制化内容，按顺序推送，遇到观看过的，放在推送list的最后。
         # v0.23（调整）
-        # 如果内容为定制化内容，按顺序推送，遇到观看过的，全部随机后，放在推送list的最后。
+        # 如果内容为定制化内容，先全部shuffle，遇到观看过的，按照观看时间顺序，从旧到新放在推送list的最后。
         size = input_data.size
         size = min(20, size)
         req_id = input_data.req_id
