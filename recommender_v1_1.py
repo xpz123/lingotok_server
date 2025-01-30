@@ -90,7 +90,7 @@ class CustomizedRecaller(Recaller):
             customize_videos = ujson.loads(customize_videos_str)
             end_time = time.time()
             # print ("latest get dur {}".format(end_time - start_time))
-            # rd.shuffle(customize_videos)
+            rd.shuffle(customize_videos)
             return customize_videos
         except:
             return []
@@ -215,6 +215,15 @@ class RecommenderV1_1:
             for video in favorite_video_list:
                 recent_watch_videoid_set.add(video.video_info.video_id)
         return recent_watch_videoid_set
+    
+    def fetch_recent_watched_videos_time(self, user_behavior_info):
+        recent_watched_videoid_time = dict()
+        recent_watch_video_list = user_behavior_info.recent_watch_video_list
+        if not recent_watch_video_list is None:
+            for video in recent_watch_video_list:
+                if not video.watch_time is None:
+                    recent_watched_videoid_time[video.video_info.video_id] = video.watch_time
+        return recent_watched_videoid_time
 
     async def recommend(self, input_data):
         # v0.1(已废弃)
@@ -228,8 +237,10 @@ class RecommenderV1_1:
         # 如果上述内容无法填满size，则随机填充库中内容
         # v0.21(调整)
         # 基于v0.21调整：非定制初级用户：20%最新内容 + 40%初级内容 + 20% 随机全量内容 + 20%连续内容+系列内容
-        # v0.22(增补)
+        # v0.22(废弃)
         # 如果内容为定制化内容，按顺序推送，遇到观看过的，放在推送list的最后。
+        # v0.23（调整）
+        # 如果内容为定制化内容，按顺序推送，遇到观看过的，全部随机后，放在推送list的最后。
         size = input_data.size
         size = min(20, size)
         req_id = input_data.req_id
@@ -238,6 +249,8 @@ class RecommenderV1_1:
 
         # Fetch recent watched video_id from recent_watch_video_list, recent_like_video_list, recent_favorite_video_list
         recent_watch_videoid_set = self.fetch_recent_watched_videos(user_behavior_info)
+        recent_watched_videoid_time = self.fetch_recent_watched_videos_time(user_behavior_info)
+        print (recent_watched_videoid_time)
 
         rank_result = []
         recall_result_dict = {}
@@ -247,20 +260,28 @@ class RecommenderV1_1:
             try:
                 if recaller_name == "customized":
                     recall_result = await self.recaller_dict[recaller_name].recall(input_data)
+                    # print (json.dumps(recall_result, ensure_ascii=False))
                     if len(recall_result) != 0:
                         # process customized only, rerank customized videos with recent watch videos
                         while len(recall_result) < size:
                             recall_result += recall_result
                         watched_video_list = []
                         not_watched_video_list = []
+                        watched_video_list_withtime = list()
                         for video in recall_result:
                             if video["id"] in recent_watch_videoid_set:
                                 watched_video_list.append(video)
+                                watched_video_list_withtime.append((video, recent_watched_videoid_time.get(video["id"], "")))
                             else:
                                 not_watched_video_list.append(video)
                         # watched_video_list = list(reversed(watched_video_list))
                         rd.shuffle(watched_video_list)
-                        recall_result_dict["customized"] = not_watched_video_list + watched_video_list
+                        sorted_watched_video_list_withtime =sorted(watched_video_list_withtime, key=lambda x: x[1])
+                        sorted_watched_video_list = [item[0] for item in sorted_watched_video_list_withtime]
+                        
+                        recall_result_dict["customized"] = not_watched_video_list + sorted_watched_video_list
+                        # import json
+                        # print (json.dumps(recall_result_dict["customized"], ensure_ascii=False))
                         break
                     else:
                         recall_result_dict["customized"] = []

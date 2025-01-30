@@ -56,6 +56,7 @@ class VideoInfo(BaseModel):
 class VideoUserInfo(BaseModel):
     video_info: VideoInfo
     watch_complete: bool
+    watch_time: Optional[int]
     like: bool
     favorite: bool
 
