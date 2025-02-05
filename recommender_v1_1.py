@@ -250,7 +250,7 @@ class RecommenderV1_1:
         # Fetch recent watched video_id from recent_watch_video_list, recent_like_video_list, recent_favorite_video_list
         recent_watch_videoid_set = self.fetch_recent_watched_videos(user_behavior_info)
         recent_watched_videoid_time = self.fetch_recent_watched_videos_time(user_behavior_info)
-        print (recent_watched_videoid_time)
+        # print (recent_watched_videoid_time)
 
         rank_result = []
         recall_result_dict = {}
@@ -260,6 +260,7 @@ class RecommenderV1_1:
             try:
                 if recaller_name == "customized":
                     recall_result = await self.recaller_dict[recaller_name].recall(input_data)
+                    # import json
                     # print (json.dumps(recall_result, ensure_ascii=False))
                     if len(recall_result) != 0:
                         # process customized only, rerank customized videos with recent watch videos
@@ -271,7 +272,7 @@ class RecommenderV1_1:
                         for video in recall_result:
                             if video["id"] in recent_watch_videoid_set:
                                 watched_video_list.append(video)
-                                watched_video_list_withtime.append((video, recent_watched_videoid_time.get(video["id"], "")))
+                                watched_video_list_withtime.append((video, recent_watched_videoid_time.get(video["id"], -1)))
                             else:
                                 not_watched_video_list.append(video)
                         # watched_video_list = list(reversed(watched_video_list))
