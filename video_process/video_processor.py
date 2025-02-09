@@ -631,7 +631,7 @@ class VideoProcessor:
 		subtitle_list = list(subtitles)
 		rd.shuffle(subtitle_list)
 
-		example_quiz ={"question": "我跟朋友分别时会说____。", "options": ["再见", "再贝", "再兄", "再兑"], "answer": "再见", "explanation": "“再见”是人们在分别时常使用的礼貌用语，而“再贝”“再兄”“再兑”并不是正确的表达，不符合日常用语习惯，所以应选“再见”。"}
+		example_quiz ={"question": "我跟朋友分别时会说____。", "options": ["再见", "再说", "再一次", "再给"], "answer": "再见", "explanation": "“再见”是人们在分别时常使用的礼貌用语，而“再说”“再一次”“再给”并不是适合语境的表达，不符合日常用语习惯，所以应选“再见”。"}
 		example_quiz_json = json.dumps(example_quiz,  ensure_ascii=False)
 
 		stop_words = ["哎", "了", "的", "地", "吧", "吗", "啊", "你", "我", "他", "您", "嗯", "我们", "你们", "他们"]
@@ -643,12 +643,14 @@ class VideoProcessor:
 			subtitle_text = sub.text.replace("\n", "。 ")
 			seg_list = jieba.cut(subtitle_text, cut_all=False)
 			text = " ".join(seg_list)
-			for word in text.split(" "):
+			word_list = text.split(" ")
+			rd.shuffle(word_list)
+			for word in word_list:
 				if word in stop_words:
 					continue
 				if word in self.hsk_word_set:
 					# print (word)
-					prompt = "以下是一个示例：当给到一个##中文句子##：“我 跟 朋友 分别 时 会 说 再见。”，遮挡其中“再见”这个词之后，将该句子变成一个选择题目，其中“再见“是正确选项，而其余的要和正确选项有一些相似，但是非常不适合填在句子中。请注意！给我的结果需要按照如下的json格式： {}。这是一个##中文句子##：“{}”，遮挡其中“{}”这个词之后，将该句子变成一个选择题目，其中“{}“是正确选项，而其余的要和正确选项有一些相似，但是非常不适合填在句子中。请注意！给我的结果需要按照如下的json格式".format(example_quiz_json, text, word, word, word)
+					prompt = "以下是一个示例：当给到一个##中文句子##：“我 跟 朋友 分别 时 会 说 再见。”，遮挡其中“再见”这个词之后，将该句子变成一个选择题目，其中“再见“是正确选项，而其余的要和正确选项有一些相似，但是非常不适合填在句子中。请注意！给我的结果需要按照如下的json格式： {}。这是一个##中文句子##：“{}”，遮挡其中“{}”这个词之后，将该句子变成一个选择题目，其中“{}“是正确选项，而其余的要和正确选项有一些相似，并且是一个常用的中文词汇，但是非常不适合填在句子中。请注意！给我的结果需要按照如下的json格式".format(example_quiz_json, text, word, word, word)
 					# print (prompt)
 					try:
 						# resp = call_doubao_pro_128k(prompt)

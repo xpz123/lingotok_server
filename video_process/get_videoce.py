@@ -9,7 +9,7 @@ from process_zhihu import load_id2url
 from vod_huoshan_util import *
 from vod_hw_util import upload_hw_withcsv
 from content_tagger import tag_video_info_csv_audio_ratio
-os.environ["IMAGEIO_FFMPEG_EXE"] = "/opt/homebrew/Cellar/ffmpeg/7.1_3/bin/ffmpeg"
+os.environ["IMAGEIO_FFMPEG_EXE"] = "/opt/homebrew/Cellar/ffmpeg/7.1_4/bin/ffmpeg"
 import uuid
 from create_video import create_with_csv, update_videoinfo_recommender_withcsv
 from content_tagger import update_video_info_csv_level
@@ -158,7 +158,7 @@ def generate_quiz_zh(ensrt_dir, metainfo_file):
                 zhsrt_filename = os.path.join(root, f.replace("\\", "/"))
                 vid = f.split("_")[0]
                 video_processor.load_srt(zhsrt_filename)
-                quiz = video_processor.generate_quiz_zh_tiankong(zhsrt_filename)
+                quiz = video_processor.generate_quiz_zh_tiankong_v2(zhsrt_filename)
                 if quiz == None:
                     continue
                 os.system("sleep 1")
@@ -444,7 +444,7 @@ def prep_aigc_huoshan():
     lines = open(metainfo_file).readlines()
     for i in tqdm(range(df.shape[0])):
         video_path = df.iloc[i]["FileName"]
-        cmd = "/opt/homebrew/Cellar/ffmpeg/7.1_3/bin/ffmpeg -y -loglevel error -i {} -vf subtitles={} {}".format(video_path.replace(" ", "\\ "), df.iloc[i]["zh_srt"].replace(" ", "\\ "), video_path.replace(" ", "\\ ").replace(".mp4", "_zh.mp4"))
+        cmd = "/opt/homebrew/Cellar/ffmpeg/7.1_4/bin/ffmpeg -y -loglevel error -i {} -vf subtitles={} {}".format(video_path.replace(" ", "\\ "), df.iloc[i]["zh_srt"].replace(" ", "\\ "), video_path.replace(" ", "\\ ").replace(".mp4", "_zh.mp4"))
         os.system(cmd)
         res = upload_media(video_path.replace(".mp4", "_zh.mp4"), space_name="lingotok", tag="DR1", desc="DR1")
         vid = res["vid"]
@@ -484,7 +484,7 @@ def prep_hw_data():
 
     ## 等待merge
     video_dir_list = []
-    video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/记录生活/阿华日记")
+    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/记录生活/阿华日记")
     # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/影视/阿奇讲电影")
     # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/记录生活/大白在广州")
     # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/记录生活/黄姐夫在德国")
@@ -530,7 +530,9 @@ def prep_hw_data():
     # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/科技/说车的阿飞")
     # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/记录生活/ahua")
     # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/科技/亿点点不一样")
-
+    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/沙特女子Demo/沙特教育局 demo_视频素材 edited")
+    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/沙特女子Demo/KAU-lecture/0126/ori_videos")
+    video_dir_list.append("/Users/tal/work/lingtok_server/video_process/沙特女子Demo/低龄视频demo-0208")
 
 
     for video_dir in video_dir_list:
@@ -558,17 +560,18 @@ def prep_hw_data():
         # compressed_csv_file = os.path.join(video_dir, "video_info_compressed.csv")
         vod_csv_file = os.path.join(video_dir, "video_info_vod_hw.csv")
         tag_csv_file = os.path.join(video_dir, "video_info_tag.csv")
+        cus_tag = "SAEKID"
         
         # For debug
-        skip_srt = True
-        skip_quiz = True
-        skip_add_cover = True
-        skip_tag_video = True
+        skip_srt = False
+        skip_quiz = False
+        skip_add_cover = False
+        skip_tag_video = False
         # skip_compress = True
         skip_upload = True
 
         skip_create = True
-        skip_update_recommender = False
+        skip_update_recommender = True
 
         video_processor = VideoProcessor()
 
@@ -588,7 +591,7 @@ def prep_hw_data():
                 item.append(title)
                 description = video_path.split("/")[-2]
                 item.append(description)
-                os.system("/opt/homebrew/Cellar/ffmpeg/7.1_4/bin/ffmpeg -y -loglevel error -i {} -ac 1 -ar 16000 -f wav test.wav".format(video_path.replace(" ", "\\ ").replace("&", "\\&")))
+                os.system("/opt/homebrew/Cellar/ffmpeg/7.1_4/bin/ffmpeg -y -loglevel error -i \"{}\" -ac 1 -ar 16000 -f wav test.wav".format(video_path))
                 srt_res = video_processor.generate_zhsrt("",  os.path.join(srt_dir, srt_name), audio_path="test.wav", gen_ar=True)
                 os.system("rm test.wav")
                 if srt_res == None:
@@ -642,7 +645,7 @@ def prep_hw_data():
             # upload_huoshan_withcsv(tag_csv_file, vod_csv_file)
 
         if not skip_create:
-            create_with_csv(quiz_metainfo_file, vod_csv_file, out_csv_file)
+            create_with_csv(quiz_metainfo_file, vod_csv_file, out_csv_file, customize=cus_tag)
         
         if not skip_update_recommender:
             update_videoinfo_recommender_withcsv(out_csv_file)

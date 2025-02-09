@@ -4,7 +4,7 @@ os.environ["IMAGEIO_FFMPEG_EXE"] = "/opt/homebrew/Cellar/ffmpeg/7.1_4/bin/ffmpeg
 from translator import translate_text2ar
 from pypinyin import pinyin
 
-from moviepy.editor import VideoFileClip, AudioFileClip, TextClip, CompositeVideoClip, ColorClip, concatenate_videoclips, CompositeAudioClip
+from moviepy.editor import VideoFileClip, AudioFileClip, TextClip, CompositeVideoClip, ColorClip, concatenate_videoclips, CompositeAudioClip, ImageSequenceClip
 from moviepy.config import change_settings
 change_settings({"IMAGEMAGICK_BINARY": "/opt/homebrew/Cellar/imagemagick/7.1.1-43/bin/magick"})
 from bidi.algorithm import get_display
@@ -82,7 +82,7 @@ def generate_subtitle(zh_text_list, srt_prefix, root_dir, audio_dur_dict, audio_
         if audio_list is not None:
             dur_ms = int(audio_dur_dict[audio_list[i]] * 1000)
         else:
-            dur_ms = int(audio_dur_dict["{}_{}".format(zh_text_list[0], i+1)] * 1000)
+            dur_ms = int(audio_dur_dict["{}_{}".format(zh_text_list[0], (i+1))] * 1000)
         start_time_str = milliseconds_to_time_string(start_time)
         end_time_str = milliseconds_to_time_string(start_time + dur_ms)
         start_time = start_time + dur_ms
@@ -111,27 +111,41 @@ def generate_sent_quiz(word):
     content = json.loads(content_str)
     return content
     
-def modify_videos(video_path, word, pinyin, ar_word, sentence, merged_audio, audio_dur_dict, out_video_path):
+def modify_videos(emoji_path, word, pinyin, ar_word, merged_audio, audio_dur_dict, out_video_path):
     audio_dur = sum([audio_dur_dict[key] for key in audio_dur_dict.keys()])
     try:
-        video_ori = VideoFileClip(video_path)
+        if emoji_path.endswith(".gif") or emoji_path.endswith(".GIF"):
+            emoji_path = emoji_path.replace(".gif", ".mp4").replace(".GIF", ".mp4")
+            # cmd = "/opt/homebrew/Cellar/ffmpeg/7.1_4/bin/ffmpeg -loglevel error -y -i  {} -b:v 1M -vf scale=540:-1 {}".format(emoji_path, os.path.join(root_dir, "tmp.mp4"))
+            # os.system(cmd)
+            video_ori = VideoFileClip(emoji_path)
+            if audio_dur > video_ori.duration:
+                n_loop = int(audio_dur / video_ori.duration) + 1
+                print (n_loop)
+            video_ori = video_ori.loop(n=n_loop)
+            # os.remove(os.path.join(root_dir, "tmp.mp4"))
+            # video_ori = VideoFileClip(os.path.join(root_dir, "tmp_loop.mp4"))
+            # os.remove(os.path.join(root_dir, "tmp_loop.mp4"))   
+        else:
+            fps = 10
+            image_num = int(fps * audio_dur)
+            images = [emoji_path for i in range(image_num)]
+            video_ori = ImageSequenceClip(images, fps=fps)
         # video_no_audio=video_ori.set_audio(None)
 
-        while audio_dur > video_ori.duration:
-            clips = [video_ori, video_ori]
-            video_ori = concatenate_videoclips(clips)
         video = video_ori.subclip(0, audio_dur)
-        video_audio = video.audio.volumex(0.05)
-        # max_val = max(video.size[0], video.size[1])
-        # if max_val > 720:
-        # resize_ratio = min(1,  / max_val)
-        # new_w = resize_ratio * video.w
-        # if new_w % 2 == 1:
-        #     new_w += 1
-        # new_h = resize_ratio * video.h
-        # if new_h % 2 == 1:
-        #     new_h += 1
-        # video = video.resize(newsize=(new_w, new_h))
+        # video_audio = video.audio.volumex(0.05)
+        max_val = max(video.size[0], video.size[1])
+        if max_val < 540:
+            resize_ratio = max(1, 540.0 / float(max_val))
+            new_w = resize_ratio * video.w
+            if new_w % 2 == 1:
+                new_w += 1
+            new_h = resize_ratio * video.h
+            if new_h % 2 == 1:
+                new_h += 1
+            video = video.resize(newsize=(new_w, new_h))
+        
             
         txt_clip_chinese = TextClip("{}\n{}".format(pinyin, word), fontsize=35, color='white', font='Songti-SC-Black')
         txt_clip_chinese = txt_clip_chinese.set_position("center", relative=True).set_duration(video.duration)
@@ -158,49 +172,13 @@ def modify_videos(video_path, word, pinyin, ar_word, sentence, merged_audio, aud
         video_with_text = CompositeVideoClip([video, chinese_text_with_bg, arbic_text_with_bg])
         audio_clip = AudioFileClip(merged_audio)
 
-        final_audio = CompositeAudioClip([audio_clip, video_audio])
+        # final_audio = CompositeAudioClip([audio_clip, video_audio])
 
-        video_final = video_with_text.set_audio(final_audio)
+        video_final = video_with_text.set_audio(audio_clip)
         # video_final.write_videofile(out_video_path, codec='libx264', audio_codec="aac")
 
         
-        if sentence.find(word) == -1:
-            print ("{} not in sentence".format(word))
-            video_final.write_videofile(out_video_path, codec='libx264', audio_codec="aac")
-            return 0
-        sent_clip = TextClip(sentence, fontsize=25, color='white', font='Songti-SC-Black')
-        if sent_clip.w > video_final.w * 0.9:
-            print ("sentence too long, skip!")
-            video_final.write_videofile(out_video_path, codec='libx264', audio_codec="aac")
-            return 0
-        start_pos = (1.0 - sent_clip.w / video_final.w) / 2.0
-        pre_sent = sentence.split(word)[0]
-        if pre_sent == "":
-            pre_sent = " "
-        pre_text_clip = TextClip(pre_sent, fontsize=25, color='white', font='Songti-SC-Black').set_duration(video.duration)
-        # pre_text_clip = pre_text_clip.set_position((start_pos, 0.5), relative=True).set_duration(video.duration)
-        pre_text_bg = ColorClip(size=pre_text_clip.size, color=(0, 0, 0), duration=video.duration)
-        pre_text_clip_with_bg = CompositeVideoClip([pre_text_bg, pre_text_clip])
-        pre_text_clip_with_bg = pre_text_clip_with_bg.set_position((start_pos, 0.5), relative=True).set_duration(video.duration)
-
-        word_clip = TextClip(word, fontsize=25, color='red', font='Songti-SC-Black').set_duration(video.duration)
-        # word_clip = word_clip.set_position((start_pos + pre_text_clip.w / video_final.w, 0.5), relative=True)
-        word_bg = ColorClip(size=word_clip.size, color=(0, 0, 0), duration=video.duration)
-        word_clip_withbg = CompositeVideoClip([word_bg, word_clip])
-        word_clip_withbg = word_clip_withbg.set_position((start_pos + pre_text_clip_with_bg.w / video_final.w, 0.5), relative=True).set_duration(video.duration)
-
-        post_sent = (word).join(sentence.split(word)[1:])
-        post_text_clip = TextClip(post_sent, fontsize=25, color='white', font='Songti-SC-Black').set_duration(video.duration)
-        # post_text_clip = post_text_clip.set_position((start_pos + pre_text_clip.w / video_final.w + word_clip.w / video_final.w, 0.5), relative=True)
-        post_bg = ColorClip(size=post_text_clip.size, color=(0, 0, 0), duration=video.duration)
-        post_text_clip_withbg = CompositeVideoClip([post_bg, post_text_clip])
-        post_text_clip_withbg = post_text_clip_withbg.set_position((start_pos + pre_text_clip_with_bg.w / video_final.w + word_clip.w / video_final.w, 0.5), relative=True).set_duration(video.duration)
-
-        # sent_bg_color = ColorClip(size=(pre_text_clip.w + word_clip.w + post_text_clip.w, pre_text_clip.h), color=(0, 0, 0), duration=video.duration)
-        # sent_bg_color = sent_bg_color.set_opacity(0.7)
-        # sent_with_bg = CompositeVideoClip([sent_bg_color, pre_text_clip, word_clip, post_text_clip])
-        # sent_with_bg = sent_with_bg.set_position((start_pos, 0.5), relative=True).set_duration(video.duration)
-        video_final = CompositeVideoClip([video_final, pre_text_clip_with_bg, word_clip_withbg, post_text_clip_withbg])
+        # video_final = CompositeVideoClip([video_final, pre_text_clip_with_bg, word_clip_withbg, post_text_clip_withbg])
         video_final.write_videofile(out_video_path, codec='libx264', audio_codec="aac")
 
         return 1
@@ -214,9 +192,29 @@ def upload_video(video_srt_file):
     df = pd.read_csv(video_srt_file)
     df.dropna(subset=["zh_srt"], axis=0, how="any", inplace=True)
     
+def convert_emojidir_to_csv(emoji_dir, out_csv):
+    df_list = list()
+    leagal_suffix = [".jpg", ".jpeg", ".png", ".gif", ".JPG", ".JPEG", ".PNG", ".GIF"]
+    for item in os.listdir(emoji_dir):
+        is_legual = False
+        for suffix in leagal_suffix:
+            if item.endswith(suffix):
+                is_legual = True
+                break
+        if not is_legual:
+            continue
+        word = item.split(".")[0]
+        df_list.append([word, os.path.join(emoji_dir, item)])
+    df = pd.DataFrame(df_list, columns=["单词", "emoji"])
+    df.to_csv(out_csv, index=False)
 
-
-
+def outdate_with_csv(create_csv, date):
+    df = pd.read_csv(create_csv)
+    from create_video import update_video_info
+    for i in tqdm(range(df.shape[0])):
+        video_id = df.iloc[i]["video_id"]
+        update_video_info(video_id, customize="KAU777_{}".format(date))
+        
 if __name__ == "__main__":
     # df = pd.read_csv("/Users/tal/work/lingtok_server/video_process/沙特女子Demo/初级汉语/词汇练习/words_refined.csv")
     # df = pd.read_excel("/Users/tal/work/lingtok_server/video_process/沙特女子Demo/初级汉语/真-初级口语1+2/初级口语1/words_chap1.xls")
@@ -224,10 +222,10 @@ if __name__ == "__main__":
     
     video_processor = VideoProcessor()
 
-    # root_dir = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/初级汉语/真-初级口语1+2/初级口语1/chap12"
-    root_dir = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/初级汉语/真-初级口语1+2/初级口语1/chap14"
-    df = pd.read_excel(os.path.join(root_dir, "words_chap.xls"))
-    create_tag = "PNU_1_14"
+    # root_dir = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/KAU-lecture/0126"
+    root_dir = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/KAU-lecture/0203"
+    emoji_dir = os.path.join(root_dir, "学中文表情包")
+    create_tag = "KAU777"
 
     audio_dir = os.path.join(root_dir, "audios")
     if not os.path.exists(audio_dir):
@@ -235,6 +233,8 @@ if __name__ == "__main__":
     video_dir = os.path.join(root_dir, "videos")
     if not os.path.exists(video_dir):
         os.makedirs(video_dir)
+    
+    emoji_csv = os.path.join(root_dir, "emoji.csv")
     quiz_jsonl = os.path.join(root_dir, "words_quiz.jsonl")
     quiz_csv = os.path.join(root_dir, "quiz.csv")
     word_py_csv = os.path.join(root_dir, "words_refined_with_sent_pinyin.csv")
@@ -245,13 +245,22 @@ if __name__ == "__main__":
     vod_csv = os.path.join(root_dir, "vod.csv")
     create_csv = os.path.join(root_dir, "create.csv")
 
-    skip_quiz = False
-    skip_video = False
-    skip_srt = False
-    skip_tag = False
-    skip_vod = False
-    skip_create = False
-    
+    skip_outdate = False
+    skip_quiz = True
+    skip_py_arword = True
+    skip_video = True
+    skip_srt = True
+    skip_tag = True
+    skip_vod = True
+    skip_create = True
+
+    if not skip_outdate:
+        prev_csv = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/KAU-lecture/0126/create.csv"
+        outdate_with_csv(prev_csv, "0126")
+
+
+    convert_emojidir_to_csv(emoji_dir, emoji_csv)
+    df = pd.read_csv(emoji_csv)
 
     if not skip_quiz:
         columns = df.columns.to_list()
@@ -297,14 +306,15 @@ if __name__ == "__main__":
 
         df_new = pd.DataFrame(df_list, columns=columns)
         df_new.to_csv(quiz_csv, index=False)
-
-    if not skip_video:
-        fj_video_dir = "/Users/tal/work/lingtok_server/video_process/hw/videos/风景视频"
-        video_path_list = [os.path.join(fj_video_dir, item) for item in os.listdir(fj_video_dir)]
-        rd.shuffle(video_path_list)
-
+    
+    if not skip_py_arword:
         add_pinyin(quiz_csv, word_py_csv)
         trans_word_to_ar(word_py_csv, word_py_ar_csv)
+
+    if not skip_video:
+        # fj_video_dir = "/Users/tal/work/lingtok_server/video_process/hw/videos/风景视频"
+        # video_path_list = [os.path.join(fj_video_dir, item) for item in os.listdir(fj_video_dir)]
+        # rd.shuffle(video_path_list)
 
         df_new = pd.read_csv(word_py_ar_csv)
         # df_new = pd.read_csv("沙特女子Demo/初级汉语/词汇练习/words_refined_with_sent_pinyin_ar_video.csv")
@@ -315,24 +325,27 @@ if __name__ == "__main__":
 
         for i in tqdm(range(df_new.shape[0])):
             try:
+                emoji_path = df_new.iloc[i]["emoji"]
                 word = df_new.iloc[i]["单词"]
                 py = df_new.iloc[i]["拼音"]
                 ar_word = df_new.iloc[i]["阿语翻译"]
                 content = json.loads(df_new.iloc[i]["问题"])
-                audio_list = [os.path.join(audio_dir, "{}_1.wav".format(word)), os.path.join(audio_dir, "{}_2.wav".format(word)), os.path.join(audio_dir, "{}_3.wav".format(word)), os.path.join(audio_dir, "{}_4.wav".format(word)).format(word)]
-                if not os.path.exists(audio_list[0]):
-                    generate_wav(word, audio_list[0], voice_type="BV001_streaming", speed=0.7)
+                audio_list = [os.path.join(audio_dir, "{}_1.wav".format(word)), os.path.join(audio_dir, "{}_2.wav".format(word)).format(word), os.path.join(audio_dir, "{}_1.wav".format(word))]
+                if word == "666":
+                    word = "六六六"
                 if not os.path.exists(audio_list[1]):
-                    generate_wav(word, audio_list[1], voice_type="BV002_streaming", speed=0.8)
-                if not os.path.exists(audio_list[2]):
-                    generate_wav(content["sentence"], audio_list[2], voice_type="BV001_streaming", speed=0.7)
-                if not os.path.exists(audio_list[3]):
-                    generate_wav(content["sentence"], audio_list[3], voice_type="BV002_streaming", speed=0.8)
+                    generate_wav(word, audio_list[1], voice_type="BV001_streaming", speed=0.3)
+                if not os.path.exists(audio_list[0]):
+                    generate_wav(word, audio_list[0], voice_type="BV002_streaming", speed=0.3)
+                # if not os.path.exists(audio_list[2]):
+                #     generate_wav(content["sentence"], audio_list[2], voice_type="BV001_streaming", speed=0.7)
+                # if not os.path.exists(audio_list[3]):
+                #     generate_wav(content["sentence"], audio_list[3], voice_type="BV002_streaming", speed=0.8)
                 merged_wav = os.path.join(audio_dir, "{}_merged.wav".format(word))
-                audio_dur_dict = merge_audios(audio_list, merged_wav)
-                rd.shuffle(video_path_list)
+                audio_dur_dict = merge_audios(audio_list, merged_wav, sil_dur=1000)
+                # rd.shuffle(video_path_list)
                 out_video = os.path.join(video_dir, "{}_{}.mp4".format(i, word))
-                mark = modify_videos(video_path_list[0], word, py, ar_word, content["sentence"], merged_wav, audio_dur_dict, out_video)
+                mark = modify_videos(emoji_path, word, py, ar_word, merged_wav, audio_dur_dict, out_video)
                 if len(df_list[i]) == 27:
                     df_list[i][-2] = out_video
                     df_list[i][-1] = mark
@@ -361,10 +374,11 @@ if __name__ == "__main__":
                 word = df_video.iloc[i]["单词"]
                 sent = df_video.iloc[i]["例句"]
                 srt_prefix = "{}_{}".format(i, word)
-                audio_list = [os.path.join(audio_dir, "{}_1.wav".format(word)), os.path.join(audio_dir, "{}_2.wav".format(word)), os.path.join(audio_dir, "{}_3.wav".format(word)), os.path.join(audio_dir, "{}_4.wav".format(word)).format(word)]
+                audio_list = [os.path.join(audio_dir, "{}_1.wav".format(word)), os.path.join(audio_dir, "{}_2.wav".format(word)).format(word), os.path.join(audio_dir, "{}_1.wav".format(word))]
                 merged_wav = "testdir/test.wav"
+                audio_name_list = ["{}_1".format(word), "{}_2".format(word), "{}_1".format(word)]
                 audio_dur_dict = merge_audios(audio_list, merged_wav)
-                srt_res = generate_subtitle([word, word, sent, sent], srt_prefix, srt_dir, audio_dur_dict)
+                srt_res = generate_subtitle([word, word, word], srt_prefix, srt_dir, audio_dur_dict, audio_list=audio_name_list)
                 df_list[i].append(srt_res["zh_srt"])
                 df_list[i].append(srt_res["ar_srt"])
                 df_list[i].append(srt_res["en_srt"])
@@ -381,14 +395,13 @@ if __name__ == "__main__":
     # df_srt = pd.read_csv("沙特女子Demo/初级汉语/词汇练习/words_refined_with_sent_pinyin_ar_video_srt.csv")
     # df_srt.dropna(subset=["zh_srt"], axis=0, how="any", inplace=True)
     # df_srt.to_csv("沙特女子Demo/初级汉语/词汇练习/words_refined_with_sent_pinyin_ar_video_srt_clean.csv", index=False)
-
+    
     if not skip_tag:
         from content_tagger import update_video_info_csv_level
         # pnu1_tag_csv = "沙特女子Demo/初级汉语/词汇练习/pnu1_srt_clean_tag.csv"
         update_video_info_csv_level(srt_csv, tag_csv)
         # pnu2_tag_csv = "沙特女子Demo/初级汉语/词汇练习/pnu2_srt_clean_tag.csv"
         # update_video_info_csv_level("沙特女子Demo/初级汉语/词汇练习/pnu2_srt_clean.csv", pnu2_tag_csv)
-    
     if not skip_vod:
         from vod_hw_util import upload_hw_withcsv
         # pnu1_vod_csv = "沙特女子Demo/初级汉语/词汇练习/pnu1_srt_clean_tag_vod.csv"

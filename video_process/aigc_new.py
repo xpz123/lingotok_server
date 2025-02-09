@@ -223,7 +223,7 @@ def create_subtitle_clip(txt1, txt2, start, end, fontsize=30):
     """创建包含两行字幕的文本片段"""
     combined_text = f"{txt1}\n{txt2}"  # 将两行文本合并
     return (TextClip(txt1, fontsize=fontsize, color='white', bg_color='black', font="Songti-SC-Black")
-            .set_position(('center', 0.85), relative=True)
+            .set_position(('center', 0.8), relative=True)
             .set_start(start)
             .set_duration((end - start)))
 
@@ -262,13 +262,14 @@ def add_subtitles_to_video(video_path, chinese_srt, arbic_srt, output_path):
                    end_time.seconds * 1000 + 
                    end_time.milliseconds)
         end = float(end_time_ms) / float(1000)
-        subtitle_clips.append(create_subtitle_clip(text1, text2, start, end))
-        subtitle_clips.append(create_subtitle_clip_ar(text1, text2, start, end))
+        subtitle_clips.append(create_subtitle_clip(text1, text2, start, end, fontsize=15))
+        subtitle_clips.append(create_subtitle_clip_ar(text1, text2, start, end, fontsize=15))
 
-    image = ImageClip("/Users/tal/work/lingtok_server/video_process/沙特女子Demo/初级汉语/logo.png")
-    image = image.set_duration(video.duration).set_position(("right", "bottom"))
-    # 合成视频与字幕
-    video_with_subtitles = CompositeVideoClip([video] + subtitle_clips + [image])
+    # image = ImageClip("/Users/tal/work/lingtok_server/video_process/沙特女子Demo/初级汉语/logo.png")
+    # image = image.set_duration(video.duration).set_position(("right", "bottom"))
+    # # 合成视频与字幕
+    # video_with_subtitles = CompositeVideoClip([video] + subtitle_clips + [image])
+    video_with_subtitles = CompositeVideoClip([video] + subtitle_clips)
 
     # 保存合成后的视频
     video_with_subtitles.write_videofile(output_path, codec="libx264", audio_codec="aac")

@@ -39,11 +39,13 @@ def generate_quiz(srt_csv, output_csv, quiz_jsonl):
     df = pd.read_csv(srt_csv)
     columns = df.columns.to_list()
     columns.append("quiz_id")
+    columns += ["question", "options", "answer"]
     df_list = df.values.tolist()
     fw = open(quiz_jsonl, "w", encoding="utf-8")
     for i in range(df.shape[0]):
         df_list[i].append(df.iloc[i]["title"])
         content = video_processor.generate_quiz_zh_tiankong_v2(df.iloc[i]["zh_srt"])
+        df_list[i] += [content["question"], " ; ".join(content["options"]), content["answer"]]
         multi_lingual_quiz = video_processor.translate_zh_quiz(content)
         content["ar_question"] = multi_lingual_quiz["ar_quiz"]["question"]
         content["ar_options"] = multi_lingual_quiz["ar_quiz"]["options"]
@@ -51,7 +53,7 @@ def generate_quiz(srt_csv, output_csv, quiz_jsonl):
         content["en_question"] = multi_lingual_quiz["en_quiz"]["question"]
         content["en_options"] = multi_lingual_quiz["en_quiz"]["options"]
         content["en_explanation"] = multi_lingual_quiz["en_quiz"]["explanation"]
-        content["vid"] = df.iloc[i]["title"]
+        content["vid"] = str(df.iloc[i]["title"])
         fw.write(json.dumps(content, ensure_ascii=False) + "\n")
     fw.close()
     df_new = pd.DataFrame(df_list, columns=columns)
@@ -151,12 +153,12 @@ def split_pnu_csv(ori_csv, ori_excel=None):
         df = pd.read_excel(ori_excel)
     else:
         df = pd.read_csv(ori_csv)
-    pre_sid = df.iloc[0]["对话编号"]
+    pre_sid = str(df.iloc[0]["对话编号"])
     all_sent_list = list()
     sent_list = list()
     image_list = list()
     for i in range(df.shape[0]):
-        sid = df.iloc[i]["对话编号"]
+        sid = str(df.iloc[i]["对话编号"])
         speak_id = df.iloc[i]["说话人"]
         script = df.iloc[i]["语句"]
         if sid != pre_sid:
@@ -168,15 +170,29 @@ def split_pnu_csv(ori_csv, ori_excel=None):
         sent_list.append((speak_id, script))
         # AB050-1-186-1.png
         if "图片" not in df.columns:
-            image_list.append("{}-{}-{}-{}.png".format(df.iloc[i]["index"], df.iloc[i]["行数"], df.iloc[i]["页数"],speak_id))
+            image_list.append("{}-{}-{}-{}.png".format(df.iloc[i]["对话编号"], df.iloc[i]["行数"], df.iloc[i]["页数"],speak_id))
         # image_list.append("{}-{}-{}-{}.png".format(sid, df.iloc[i]["语句编号"], df.iloc[i]["页码"], speak_id))
         else:
-            image_list.append(df.iloc[i]["图片"]+ ".png")
+            image_list.append(df.iloc[i]["图片"])
     tmp_list = copy.deepcopy(sent_list)
     all_sent_list.append({"sid": sid, "data": tmp_list, "images": image_list})
     return all_sent_list
         
+pnu1_quiz_vid = ["6790d5ad0b6a52f5b9b56371", "6790d5d80b6a52f5b9b56387", "6790d5c4cc3e1daa477a2a19",
+                 "6790d5b20b6a52f5b9b56375", "6790d5af0b6a52f5b9b56373", "6790d5510b6a52f5b9b5636f", "6790d5dccc3e1daa477a2a23", "6790d5d30b6a52f5b9b56385", "6790d5cf0b6a52f5b9b56381",
+                 "6790d5d10b6a52f5b9b56383", "6790d5ba0b6a52f5b9b5637b", "6790d5abcc3e1daa477a2a13",
+                 "6790d5ca0b6a52f5b9b5637f", "6790d587cc3e1daa477a2a0f", "6790d5cecc3e1daa477a2a1d",
+                 "6790d5d6cc3e1daa477a2a21", "6790d589cc3e1daa477a2a11", "6790d5da0b6a52f5b9b56389",
+                 "6790d5b1cc3e1daa477a2a15", "6790d5be0b6a52f5b9b5637d", "6790d5b6cc3e1daa477a2a17",
+                 "6790d5b80b6a52f5b9b56379"]
 
+pnu2_quiz_vid = ["678f6985e19148c899eeb41f", "678f6987270eef324c4a22dd", "678f6988e19148c899eeb421",
+                 "678f6c65270eef324c4a22df", "678f6c69e19148c899eeb424", "678f6c6b270eef324c4a22e1",
+                 "678f6c6d270eef324c4a22e3", "678f6c6ee19148c899eeb426", "678f6c70e19148c899eeb428",
+                 "678f6c71270eef324c4a22e5", "678f6c73270eef324c4a22e7", "678f6c76270eef324c4a22e9", 
+                 "6795b02fcff591f86bb218db", "6795b0304201172bc75ffde3", "6795b0324201172bc75ffde5",
+                 "6795b033cff591f86bb218dd", "6795b034cff591f86bb218df", "6795b0364201172bc75ffde7",
+                 "6795b3cfcff591f86bb218e1"]
 
 if __name__ == '__main__':
     ori_file_list = []
@@ -185,21 +201,33 @@ if __name__ == '__main__':
     # df.to_csv("沙特女子Demo/初级汉语/真-初级口语1+2/初级口语1/pnu1_61.csv", index=False)
     # df.to_csv("沙特女子Demo/初级汉语/初级汉语课本3/ori.csv", index=False)
     voice_dict = {1: "BV002_streaming", 2: "BV001_streaming"}
-    prefix = "初级口语2"
-    # prefix = "pnu2"
+    # prefix = "初级口语2"
     # root_dir = "沙特女子Demo/初级汉语/真-初级口语1+2/初级口语1"
-    root_dir = "沙特女子Demo/初级汉语/真-初级口语1+2/初级口语2"
+    # root_dir = "沙特女子Demo/初级汉语/真-初级口语1+2/初级口语2/chap2-3"
+    # root_dir = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/初级汉语/真-初级口语1+2/初级口语1/chap11"
+    # root_dir = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/初级汉语/真-初级口语1+2/初级口语1/chap12"
+    # root_dir = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/初级汉语/真-初级口语1+2/初级口语2/chap2"
+    # root_dir = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/初级汉语/真-初级口语1+2/初级口语1/chap13"
+    root_dir = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/初级汉语/真-初级口语1+2/初级口语1/chap14"
+    # cus_tag = "PNU_1_13"
+    # cus_tag = "PNU_2_3"
+    cus_tag = "PNU_1_14"
+    if not os.path.exists(root_dir):
+        os.makedirs(root_dir)
     # all_sent_list = split_pnu_csv("沙特女子Demo/初级汉语/初级汉语课本3/{}.csv".format(prefix))
     # audio_dir = "沙特女子Demo/初级汉语/初级汉语课本3/audios/{}".format(prefix)
     # srt_dir = "沙特女子Demo/初级汉语/初级汉语课本3/srt/{}".format(prefix)
     # video_dir = "沙特女子Demo/初级汉语/初级汉语课本3/videos/{}".format(prefix)
     # image_dir = "沙特女子Demo/初级汉语/初级汉语课本3/完整-课本3-课本3-君-睡不醒的冬三月"
 
-    ori_excel_file = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/初级汉语/真-初级口语1+2/初级口语2/更改后0115P1P18_v3.xlsx"
+    # ori_excel_file = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/初级汉语/真-初级口语1+2/初级口语2/更改后0115P1P18_v3.xlsx"
+    # ori_excel_file = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/初级汉语/真-初级口语1+2/初级口语2/chap2.xlsx"
+    # ori_excel_file = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/初级汉语/真-初级口语1+2/初级口语1/chap11/text_chap11.xls"
+    ori_excel_file = os.path.join(root_dir, "text_chap.xls")
     df = pd.read_excel(ori_excel_file)
     # df.to_csv(os.path.join(root_dir, "chap1.csv"), index=False)
     # all_sent_list = split_pnu_csv(os.path.join(root_dir, "pnu1_61.csv"))
-    all_sent_list = split_pnu_csv(os.path.join(root_dir, "chap1.csv"), ori_excel=ori_excel_file)
+    all_sent_list = split_pnu_csv("", ori_excel=ori_excel_file)
     audio_dir = os.path.join(root_dir, "audios")
     if not os.path.exists(audio_dir):
         os.makedirs(audio_dir)
@@ -210,14 +238,26 @@ if __name__ == '__main__':
     if not os.path.exists(video_dir):
         os.makedirs(video_dir)
     image_dir = os.path.join(root_dir, "images")
-    assert os.path.exists(image_dir)
-    # convert_imagedir(image_dir)
 
-    skip_video = True
-    skip_quiz = True
-    skip_tag = True
+    skip_recap = True
+    skip_video = False
+    skip_quiz = False
+    skip_tag = False
     skip_vod = False
     skip_create = False
+
+    if not skip_recap:
+        from create_video import update_video_info
+        cus_tag_prefix = cus_tag.split("_")[1]
+        if cus_tag_prefix == "1":
+            for vid in tqdm(pnu1_quiz_vid):
+                update_video_info(vid, customize=cus_tag)
+        elif cus_tag_prefix == "2":
+            for vid in tqdm(pnu2_quiz_vid):
+                update_video_info(vid, customize=cus_tag)
+    # import pdb; pdb.set_trace()
+            
+    
     srt_csv = os.path.join(root_dir, "srt.csv")
     quiz_csv = os.path.join(root_dir, "srt_quiz.csv")
     quiz_jsonl = os.path.join(root_dir, "srt_quiz.jsonl")
@@ -227,6 +267,7 @@ if __name__ == '__main__':
 
     columns = ["FileName", "title", "series_name", "customize", "zh_srt", "en_srt", "ar_srt", "pinyin_srt"]
     df_list = list()
+    import pdb; pdb.set_trace()
     if not skip_video:
         for sent_list in tqdm(all_sent_list):
             try:
@@ -256,10 +297,9 @@ if __name__ == '__main__':
                     images_to_video(audio_dur_dict, image_list, mute_video_path, audio_name_list=audio_name_list)
                     add_audio_to_video(mute_video_path, merged_audio_path, video_path)
                 
-                item_list += [video_path, sid, "{}-课文".format(prefix), prefix.upper(), srt_res["zh_srt"], srt_res["en_srt"], srt_res["ar_srt"], srt_res["pinyin_srt"]]
+                item_list += [video_path, sid, "{}-课文".format(cus_tag), cus_tag.upper(), srt_res["zh_srt"], srt_res["en_srt"], srt_res["ar_srt"], srt_res["pinyin_srt"]]
                 df_list.append(item_list)
             except Exception as e:
-                import pdb;pdb.set_trace()
                 print (e)
                 print ("error in {}".format(sent_list["sid"]))
         df = pd.DataFrame(df_list, columns=columns)
@@ -285,7 +325,9 @@ if __name__ == '__main__':
     
     if not skip_create:
         from create_video import create_with_csv, update_videoinfo_recommender_withcsv
-
-        create_with_csv(quiz_jsonl, vod_csv, create_csv, customize="PNU_2_1")
+        # vod_csv = "沙特女子Demo/初级汉语/真-初级口语1+2/初级口语1/srt_vod_chap1.csv"
+        # quiz_jsonl = "沙特女子Demo/初级汉语/真-初级口语1+2/初级口语1/srt_quiz.jsonl"
+        # create_csv = "沙特女子Demo/初级汉语/真-初级口语1+2/初级口语1/srt_create_chap1.csv"
+        create_with_csv(quiz_jsonl, vod_csv, create_csv, customize=cus_tag)
     # update_videoinfo_recommender_withcsv(create_csv)
 

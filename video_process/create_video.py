@@ -66,7 +66,7 @@ def create_with_csv(meta_file, csv_file, out_csv_file, customize=None):
     quizd = dict()
     for l in lines:
         data = json.loads(l.strip())
-        quizd[data["vid"]] = data
+        quizd[str(data["vid"])] = data
     df = pd.read_csv(csv_file)
     columns = df.columns.to_list()
     has_video_id = False
@@ -79,14 +79,17 @@ def create_with_csv(meta_file, csv_file, out_csv_file, customize=None):
                 videoid_idx = idx
 
     df_list = df.values.tolist()
+    import pdb;pdb.set_trace()
     for i in tqdm(range(df.shape[0])):
         if has_video_id:
             if df.iloc[i][videoid_idx] != "nan":
                 continue
         video_path = df.iloc[i]["FileName"]
         title = "{}_{}".format(video_path.split("/")[-2], video_path.split("/")[-1].split(".")[0])
-        if "VID" in df.columns:
-            vid = df.iloc[i]["VID"]
+        if "quiz_id" in df.columns:
+            vid = str(df.iloc[i]["quiz_id"])
+        elif "VID" in df.columns:
+            vid = str(df.iloc[i]["VID"])
         else:
             vid = df.iloc[i]["zh_srt"].split("/")[-1].split("_")[0].strip()
         if not vid in quizd.keys():
@@ -97,7 +100,7 @@ def create_with_csv(meta_file, csv_file, out_csv_file, customize=None):
         ar_srt = df.iloc[i]["ar_srt"]
         pinyin_srt = df.iloc[i]["pinyin_srt"]
         subtitles = convert_subtitles(zh_srt, en_srt, ar_srt, pinyin_srt)
-        import pdb;pdb.set_trace()
+        
         quiz = convert_quiz(quizd[vid])
         dur = int(df.iloc[i]["audio_dur"] * 1000)
         level = df.iloc[i]["level"]
@@ -129,6 +132,14 @@ def create_with_csv(meta_file, csv_file, out_csv_file, customize=None):
     
     df_out = pd.DataFrame(df_list, columns=columns)
     df_out.to_csv(out_csv_file, index=False)
+
+def update_video_info(video_id, customize=None):
+    url = "https://api.lingotok.ai/api/v1/video/update_video_info"
+    req = {"video_id": video_id}
+    if customize is not None:
+        req["customize"] = customize
+    response = requests.post(url, json=req, headers={"Content-Type": "application/json", "Authorization": "skip_auth", "Env": "test"})
+    return response.json()
 
 
 if __name__ == "__main__":

@@ -10,12 +10,14 @@ import sys
 import uuid
 import pandas as pd
 
-# vod_service = VodService('cn-north-1')
-# space_name="lingotok"
-space_name="lingotok-fr"
-vod_service = VodService('ap-southeast-1')
+vod_service = VodService('cn-north-1')
+space_name="lingotok"
+
 vod_service.set_ak("AKLTOTgzODg1Y2FiNDI5NGE3Mzk3MWEzYzJlODE3MDk2MzQ")
 vod_service.set_sk("TTJJM016azRaR0V3WXpRMk5EUXhPR0kyT0RBNVlUY3hZVGd5WlRrMlpHTQ==")
+
+# space_name="lingotok-fr"
+# vod_service = VodService('ap-southeast-1')
 
 def upload_media(file_path, title="", tag="", desc=""):
     get_meta_function = Function.get_meta_func()
