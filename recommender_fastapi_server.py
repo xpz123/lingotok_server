@@ -1,5 +1,5 @@
-from recommender import Recommender
-from recommender_v1_1 import RecommenderV1_1, init_redis_pool, close_redis_pool
+from recaller import init_redis_pool, close_redis_pool
+from recommender_v2_0 import RecommenderV2_0
 
 import uuid
 from typing import Optional, Union, List
@@ -9,8 +9,10 @@ from fastapi import FastAPI, Body
 from pydantic import BaseModel, HttpUrl
 import asyncio
 
-recommender = Recommender()
-recommenderv1_1 = RecommenderV1_1()
+# recommender = Recommender()
+# recommenderv1_1 = RecommenderV1_1()
+recommender = RecommenderV2_0()
+
 app = FastAPI()
 
 
@@ -81,7 +83,7 @@ async def recommend_video_v1(input_data: RecommendVideoRequest):
     req_id = str(uuid.uuid4())
     try:
         input_data.req_id = req_id
-        video_info_list = await recommenderv1_1.recommend(input_data)
+        video_info_list = await recommender.recommend(input_data)
         video_id_list = [video_info['id'] for video_info in video_info_list]
         title_list = [video_info['title'] for video_info in video_info_list]
         return {"video_id_list": video_id_list, "code": 200, "title_list": title_list, "req_id": req_id}
