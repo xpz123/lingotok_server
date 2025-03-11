@@ -13,16 +13,16 @@ redis_pool = None
 async def init_redis_pool():
     """初始化全局 Redis 连接池"""
     global redis_pool
-    # redis_pool = await from_url(
-    #     "redis://192.168.0.120:6379",
-    #     password='Lingotok123!',
-    #     decode_responses=True
-    # )
     redis_pool = await from_url(
-        "redis://101.46.56.32:6379",
+        "redis://192.168.0.120:6379",
         password='Lingotok123!',
         decode_responses=True
     )
+    # redis_pool = await from_url(
+    #     "redis://101.46.56.32:6379",
+    #     password='Lingotok123!',
+    #     decode_responses=True
+    # )
     
 
 async def close_redis_pool():
