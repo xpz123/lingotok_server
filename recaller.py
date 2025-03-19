@@ -8,6 +8,7 @@ import time
 import logging
 import logging.handlers
 import os
+from util import online_interest_mapping
 
 redis_pool = None
 async def init_redis_pool():
@@ -27,7 +28,7 @@ async def init_redis_pool():
 
 async def close_redis_pool():
     if redis_pool:
-        await redis_pool.close()
+        await redis_pool.aclose()
 
 async def get_redis(key):
     """从全局连接池中获取 Redis 数据"""
@@ -35,6 +36,18 @@ async def get_redis(key):
         raise RuntimeError("Redis pool is not initialized. Call init_redis_pool() first.")
     return await redis_pool.get(key)
 
+
+async def zrange_redis(key, start, end):
+    """从全局连接池中获取 Redis zset数据"""
+    if redis_pool is None:
+        raise RuntimeError("Redis pool is not initialized. Call init_redis_pool() first.")
+    return await redis_pool.zrange(key, start, end, withscores=True)
+
+async def lrange_redis(key, start, end):
+    """从全局连接池中获取 Redis list数据"""
+    if redis_pool is None:
+        raise RuntimeError("Redis pool is not initialized. Call init_redis_pool() first.")
+    return await redis_pool.lrange(key, start, end)
 
 class Recaller:
     def __init__(self):
@@ -59,11 +72,7 @@ class CustomizedRecaller(Recaller):
         basic_user_info = input_data.user_info
         invite_code = basic_user_info.invite_code
         try:
-            start_time = time.time()
-            customize_videos_str = await get_redis("customize_videos_{}".format(invite_code))
-            customize_videos = ujson.loads(customize_videos_str)
-            end_time = time.time()
-            # print ("latest get dur {}".format(end_time - start_time))
+            customize_videos = await lrange_redis("video_customize-{}".format(invite_code), 0, -1)
             rd.shuffle(customize_videos)
             return customize_videos
         except:
@@ -103,20 +112,69 @@ class ContinuousRecaller(Recaller):
     
 class LevelRecaller(Recaller):
     def __init__(self):
-        self.recall_count = 10
+        self.recall_from_series_count = 3
+        self.recall_count = 20
+        self.max_each_series_count = 10
     async def recall(self, input_data):
         # recall_videos = []
         user_level = input_data.user_info.level
-        if user_level > 1:
+        level_prefix = "video_series_level-"
+        # user_level <= 1时， 从redis获取入门、初学系列
+        recall_series = []
+        if user_level <= 1:
+            key = "{}{}".format(level_prefix, "入门")
+            recall_series += await lrange_redis(key, 0, -1)
+            key = "{}{}".format(level_prefix, "初学")
+            recall_series += await lrange_redis(key, 0, -1)
+            
+        elif user_level == 2:
+            key = "{}{}".format(level_prefix, "中等")
+            recall_series = await lrange_redis(key, 0, -1)
+        else:
+            key = "{}{}".format(level_prefix, "难")
+            recall_series = await lrange_redis(key, 0, -1)
+        rd.shuffle(recall_series)
+        recall_videos = []
+        for i in range(min(len(recall_series), self.recall_from_series_count)):
+            recall_videos += await lrange_redis("video_series-{}".format(recall_series[i]), 0, -1)
+        rd.shuffle(recall_videos)
+        return recall_videos[:self.recall_count]
+    
+class LevelInterestRecaller(Recaller):
+    def __init__(self):
+        self.recall_count = 20
+        self.recall_from_series_count = 3
+        self.level_interest_prefix = "video_series_interest_level-"
+    async def recall(self, input_data):
+        user_level = input_data.user_info.level
+        user_interests = input_data.user_info.interests
+        if user_interests is None:
             return []
-        start_time = time.time()
-        hsk_videos_str = await get_redis("customize_videos_HSK_DIY")
-        hsk_videos = ujson.loads(hsk_videos_str)
-        end_time = time.time()
-        # print ("latest get dur {}".format(end_time - start_time))
+        if len(user_interests) == 0:
+            return []
+        recall_series = []
+        if user_level <= 1:
+            for interest in user_interests:
+                key = "{}{}_{}".format(self.level_interest_prefix, "入门", interest)
+                recall_series += await lrange_redis(key, 0, -1)
+                key = "{}{}_{}".format(self.level_interest_prefix, "初学", interest)
+                recall_series += await lrange_redis(key, 0, -1)
+            
+        elif user_level == 2:
+            for interest in user_interests:
+                key = "{}{}_{}".format(self.level_interest_prefix, "中等", interest)
+                recall_series = await lrange_redis(key, 0, -1)
+        else:
+            for interest in user_interests:
+                key = "{}{}_{}".format(self.level_interest_prefix, "高级", interest)
+                recall_series = await lrange_redis(key, 0, -1)
+        rd.shuffle(recall_series)
+        recall_videos = []
+        for i in range(min(len(recall_series), self.recall_from_series_count)):
+            recall_videos += await lrange_redis("video_series-{}".format(recall_series[i]), 0, -1)
+        rd.shuffle(recall_videos)
+        return recall_videos[:self.recall_count]
         
-        rd.shuffle(hsk_videos)
-        return hsk_videos[:self.recall_count]
     
 class SeriesRecaller(Recaller):
     def __init__(self):
@@ -150,20 +208,41 @@ class SeriesRecaller(Recaller):
         
         rd.shuffle(recall_videos)
         return recall_videos[:self.recall_count]
+
 class RandomRecaller(Recaller):
     def __init__(self):
-        self.recall_count = 10
+        self.recall_count = 20
     async def recall(self, input_data):
-        random_videos_str = await get_redis("random_videos")
-        all_videos = ujson.loads(random_videos_str)
-        rd.shuffle(all_videos)
-        return all_videos[:self.recall_count]
+        random_video_ids = await lrange_redis("video_random", 0, -1)
+        rd.shuffle(random_video_ids)
+        return random_video_ids[:self.recall_count]
 
 class PopRecaller(Recaller):
     def __init__(self):
-        self.recall_count = 10
+        self.max_redis_count = 100
+        self.recall_count = 50
     async def recall(self, input_data):
-        pop_video_ids = await get_redis("")
-        all_videos = ujson.loads(pop_video_ids)
-        rd.shuffle(all_videos)
-        return all_videos[:self.recall_count]
+        pop_video_ids_list = await zrange_redis("video_pop", 0, self.max_redis_count)
+        pop_video_ids = [item[0] for item in pop_video_ids_list]
+        rd.shuffle(pop_video_ids)
+        return pop_video_ids[:self.recall_count]
+
+
+
+if __name__ == "__main__":
+    # key = "video_series_level-初级"
+    # key = "video_series-pnu2"
+    # key = "video_pop"
+    # key = "video_series_level-入门"
+    # key = "video_series-pnu1"
+    # key = "video_series_interest_level-高级_"
+    key = "video_customize-KAU777"
+    async def main():
+        await init_redis_pool()  # 首先需要初始化redis连接
+        recall_series = await lrange_redis(key, 0, -1)
+        print(recall_series)
+        # recall_videos = await zrange_redis(key, 0, -1)
+        
+        await close_redis_pool()  # 最后关闭redis连接
+    
+    asyncio.run(main())

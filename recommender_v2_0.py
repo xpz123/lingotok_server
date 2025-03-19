@@ -8,10 +8,28 @@ import time
 import logging
 import logging.handlers
 import os
-from recaller import LatestRecaller, CustomizedRecaller, ContinuousRecaller, SeriesRecaller, LevelRecaller, RandomRecaller, PopRecaller
+from recaller import LatestRecaller, CustomizedRecaller, ContinuousRecaller, SeriesRecaller, LevelRecaller, RandomRecaller, PopRecaller, LevelInterestRecaller
+
+async def parallel_recall(recaller_dict, input_data):
+    """并行调用多个recaller
+    
+    Args:
+        recallers (List[Recaller]): Recaller实例列表
+        input_data: 输入数据
+    
+    Returns:
+        Dict[str, List]: 每个recaller的召回结果，key为recaller类名
+    """
+    async def _recall_with_name(recaller_name, recaller):
+        result = await recaller.recall(input_data)
+        return recaller_name, result
+    
+    results = await asyncio.gather(*[_recall_with_name(r, recaller_dict[r]) for r in recaller_dict])
+    return dict(results)
 
 class RecommenderCtx:
     def __init__(self):
+        self.input_data = None
         self.user_behavior_info = None
         self.recent_watch_videoid_set = None
         self.recent_watch_videoid_time = None
@@ -20,7 +38,7 @@ class RecommenderCtx:
         self.recommended_videoids = []
         self.ready_rtn = False
 
-        self.recall_result = None
+        self.recall_result_dict = {}
         
         self.rank_result = None
 
@@ -36,8 +54,9 @@ class PrerecallStrategy:
     def __init__(self):
         # 开屏建议视频：山、一、你好、再见、欢迎
         self.newcomer_video_ids = ["67b4a9bc0efa0542fbfe3d9f", "67b4a9cd0efa0542fbfe3dab", "6796909d4201172bc75ffe31", "67a0ff1a3f4ca0bb2aa31126", "67a0ff253f4ca0bb2aa3112a"]
+        self.newcommer_recall_counts = 20
 
-    def check_user_status(self, user_behavior_info):
+    async def check_user_status(self, user_behavior_info):
         # User status:
         # 0 : 全新用户，没有观看记录
         # 1: 新用户，观看视频数量小于10个
@@ -47,39 +66,70 @@ class PrerecallStrategy:
             return 0
         if len(recent_watch_video_list) == 0:
             return 0
-        if len(recent_watch_video_list) < 10:
+        if len(recent_watch_video_list) < 20:
             return 1
         return 2
-    def action(self, recommender_ctx):
-        user_status = self.check_user_status(recommender_ctx.user_behavior_info)
+    async def action(self, recommender_ctx):
+        user_status = await self.check_user_status(recommender_ctx.user_behavior_info)
         recommender_ctx.user_status = user_status
         if user_status == 0:
             recommender_ctx.recommended_videoids = self.newcomer_video_ids
             rd.shuffle(recommender_ctx.recommended_videoids)
             recommender_ctx.ready_rtn = True
             return True
+        
         return True
 
 
 class Ranker:
     def __init__(self):
-        pass
-    def rank(self, ):
-        return {}
+        self.newcommer_recall_counts = 20
+        self.primary_ratio = 0.4
+        self.latest_ratio = 0.2
+        self.random_ratio = 0.2
+
+    def newcomer_rank_strategy(self, recommender_ctx):
+        # 60% level_interests  40% pop lefted level
+        level_interest_recall_video_ids = recommender_ctx.recall_result_dict["level_interest"]
+        level_recall_video_ids = recommender_ctx.recall_result_dict["level"]
+        pop_recall_video_ids = recommender_ctx.recall_result_dict["pop"]
+        recall_video_ids = level_interest_recall_video_ids[:int(0.6*self.newcommer_recall_counts)] + pop_recall_video_ids[:int(0.4*self.newcommer_recall_counts)]
+        level_recall_count = self.newcommer_recall_counts - len(recall_video_ids)
+        recall_video_ids += level_recall_video_ids[:level_recall_count]
+        recommender_ctx.rank_result = recall_video_ids
+
+    async def rank(self, recommender_ctx):
+        # Process customized videos
+        if len(recommender_ctx.recall_result_dict["customized"]) != 0:
+            recommender_ctx.rank_result = recommender_ctx.recall_result_dict["customized"]
+            rd.shuffle(recommender_ctx.rank_result)
+            return
+        # Newcomer rank strategy
+        if recommender_ctx.user_status == 1:
+            self.newcomer_rank_strategy(recommender_ctx)
+        else:
+            recommender_ctx.rank_result += recommender_ctx.recall_result_dict["level"][:(int(recommender_ctx.size * self.primary_ratio))]
+            recommender_ctx.rank_result += recommender_ctx.recall_result_dict["latest"][:(int(recommender_ctx.size * self.latest_ratio))]
+            recommender_ctx.rank_result += recommender_ctx.recall_result_dict["random"][:(int(recommender_ctx.size * self.random_ratio))]
+
+        if len(recommender_ctx.rank_result) < recommender_ctx.size:
+            recommender_ctx.rank_result += recommender_ctx.recall_result_dict["random"][(int(recommender_ctx.size * self.random_ratio)):]
+        
+        rd.shuffle(recommender_ctx.rank_result)
 
 class ReRanker:
     def __init__(self):
         pass
-    def rerank(self, recommender_ctx):
+    async def rerank(self, recommender_ctx):
         watched_video_list = []
         not_watched_video_list = []
         watched_video_list_withtime = list()
-        for video in recommender_ctx.rank_result:
-            if video["id"] in recommender_ctx.recent_watch_videoid_set:
-                watched_video_list.append(video)
-                watched_video_list_withtime.append((video, recommender_ctx.recent_watched_videoid_time.get(video["id"], -1)))
+        for video_id in recommender_ctx.rank_result:
+            if video_id in recommender_ctx.recent_watch_videoid_set:
+                watched_video_list.append(video_id)
+                watched_video_list_withtime.append((video_id, recommender_ctx.recent_watched_videoid_time.get(video_id, -1)))
             else:
-                not_watched_video_list.append(video)
+                not_watched_video_list.append(video_id)
         # watched_video_list = list(reversed(watched_video_list))
         rd.shuffle(watched_video_list)
         sorted_watched_video_list_withtime =sorted(watched_video_list_withtime, key=lambda x: x[1])
@@ -90,8 +140,10 @@ class ReRanker:
 
 class RecommenderV2_0:
     def __init__(self):
-        self.recaller_dict = {"latest": LatestRecaller(), "customized": CustomizedRecaller(), "continuous": ContinuousRecaller(), "series": SeriesRecaller(), "level": LevelRecaller(), "random": RandomRecaller(), "pop": PopRecaller()}
+        # self.recaller_dict = {"latest": LatestRecaller(), "customized": CustomizedRecaller(), "continuous": ContinuousRecaller(), "series": SeriesRecaller(), "level": LevelRecaller(), "random": RandomRecaller(), "pop": PopRecaller(), "level_interest": LevelInterestRecaller()}
+        self.recaller_dict = {"customized": CustomizedRecaller(), "level": LevelRecaller(), "random": RandomRecaller(), "pop": PopRecaller(), "level_interest": LevelInterestRecaller()}
         self.prerecall_strategy = PrerecallStrategy()
+        self.ranker = Ranker()
         self.rerank_strategy = ReRanker()
         # self.ranker = Ranker()
         self.latest_ratio = 0.2
@@ -127,6 +179,7 @@ class RecommenderV2_0:
 
     async def recommend(self, input_data):
         recommender_ctx = RecommenderCtx()
+        recommender_ctx.input_data = input_data
         size = input_data.size
         size = min(20, size)
 
@@ -141,83 +194,66 @@ class RecommenderV2_0:
 
         # Pre-Recall Strategy
         recommender_ctx.user_behavior_info = user_behavior_info
-        self.prerecall_strategy.action(recommender_ctx)
+        await self.prerecall_strategy.action(recommender_ctx)
 
-        # Check if the pre-recall strategy is ready to return
+        # Check if the pre-recall strategy is ready to return, only for Open-Screen Recommendation
         if recommender_ctx.is_ok_rtn():
-            res = list()
-            for vid in recommender_ctx.recommended_videoids[:recommender_ctx.recommended_size]:
-                res.append({"id": vid, "title": ""})
-            return res
+            return recommender_ctx.recommended_videoids
 
-        recall_result_dict = {}
+        recommender_ctx.recall_result_dict = {}
 
-        for recaller_name in self.recaller_dict.keys():
+
+        # 创建所有recaller的协程任务
+        tasks = []
+        recaller_names = list(self.recaller_dict.keys())
+        for recaller_name in recaller_names:
+            # 为每个recaller添加超时控制
+            task = asyncio.create_task(
+                asyncio.wait_for(
+                    self.recaller_dict[recaller_name].recall(input_data),
+                    timeout=30.0  # 设置30秒超时
+                )
+            )
+            tasks.append(task)
+
+        # 并行执行所有任务
+        try:
+            recall_results = await asyncio.gather(*tasks, return_exceptions=True)
+        except asyncio.TimeoutError:
+            logging.error(f"Some recallers timed out for req_id: {req_id}")
+
+        # 处理结果
+        assert len(recall_results) == len(recaller_names)
+        for i in range(len(recall_results)):
+            recall_result = recall_results[i]
+            recaller_name = recaller_names[i]
             try:
+                # Avoid the recall_result is not a list
+                if type(recall_result) != list:
+                    continue
+
                 if recaller_name == "customized":
-                    recall_result = await self.recaller_dict[recaller_name].recall(input_data)
                     if len(recall_result) != 0:
                         # process customized only, rerank customized videos with recent watch videos
                         while len(recall_result) < size:
                             recall_result += recall_result
-                        watched_video_list = []
-                        not_watched_video_list = []
-                        watched_video_list_withtime = list()
-                        for video in recall_result:
-                            if video["id"] in recommender_ctx.recent_watch_videoid_set:
-                                watched_video_list.append(video)
-                                watched_video_list_withtime.append((video, recommender_ctx.recent_watched_videoid_time.get(video["id"], -1)))
-                            else:
-                                not_watched_video_list.append(video)
-                        # watched_video_list = list(reversed(watched_video_list))
-                        rd.shuffle(watched_video_list)
-                        sorted_watched_video_list_withtime =sorted(watched_video_list_withtime, key=lambda x: x[1])
-                        sorted_watched_video_list = [item[0] for item in sorted_watched_video_list_withtime]
-                        
-                        recall_result_dict["customized"] = not_watched_video_list + sorted_watched_video_list
-                        # import json
-                        # print (json.dumps(recall_result_dict["customized"], ensure_ascii=False))
+                        recommender_ctx.recall_result_dict["customized"] = recall_result
                         break
                     else:
-                        recall_result_dict["customized"] = []
+                        recommender_ctx.recall_result_dict["customized"] = []
                 else:
-                    recall_result = await self.recaller_dict[recaller_name].recall(input_data)
-
-
-                    filted_recall_result = []
-                    for video in recall_result:
-                        if video["id"] not in recommender_ctx.recent_watch_videoid_set:
-                            filted_recall_result.append(video)
-                    recall_result_dict[recaller_name] = filted_recall_result
+                    recommender_ctx.recall_result_dict[recaller_name] = recall_result
 
             except Exception as e:
-                print (str(e))
-                recall_result_dict[recaller_name] = []
-        recommender_ctx.recall_result = recall_result_dict
-
-        rank_result = []
-
-        rank_result += recall_result_dict["customized"]
-        if len(rank_result) > size:
-            # rd.shuffle(rank_result)
-            return rank_result[:size]
-        if input_data.user_info.level <= 1:
-            rank_result += recall_result_dict["level"][:(int(size * self.primary_ratio))]
-        rank_result += recall_result_dict["latest"][:(int(size * self.latest_ratio))]
-        rank_result += recall_result_dict["random"][:(int(size * self.random_ratio))]
-        rank_result += recall_result_dict["continuous"]
-
-        if len(rank_result) < size:
-            rank_result += recall_result_dict["series"]
+                print(str(e))
+                recommender_ctx.recall_result_dict[recaller_name] = []
 
         
-        if len(rank_result) < size:
-            rank_result += recall_result_dict["random"][(int(size * self.random_ratio)):]
+        # Rank
+        await self.ranker.rank(recommender_ctx)
 
-        rd.shuffle(rank_result)
-        recommender_ctx.rank_result = rank_result
-
-        self.rerank_strategy(recommender_ctx)
+        # Rerank
+        await self.rerank_strategy.rerank(recommender_ctx)
 
         return recommender_ctx.rerank_result[:size]
 
