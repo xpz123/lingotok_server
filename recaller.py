@@ -14,16 +14,16 @@ redis_pool = None
 async def init_redis_pool():
     """初始化全局 Redis 连接池"""
     global redis_pool
-    redis_pool = await from_url(
-        "redis://192.168.0.120:6379",
-        password='Lingotok123!',
-        decode_responses=True
-    )
     # redis_pool = await from_url(
-    #     "redis://101.46.56.32:6379",
+    #     "redis://192.168.0.120:6379",
     #     password='Lingotok123!',
     #     decode_responses=True
     # )
+    redis_pool = await from_url(
+        "redis://101.46.56.32:6379",
+        password='Lingotok123!',
+        decode_responses=True
+    )
     
 
 async def close_redis_pool():
@@ -154,20 +154,23 @@ class LevelInterestRecaller(Recaller):
             return []
         recall_series = []
         if user_level <= 1:
-            for interest in user_interests:
-                key = "{}{}_{}".format(self.level_interest_prefix, "入门", interest)
-                recall_series += await lrange_redis(key, 0, -1)
-                key = "{}{}_{}".format(self.level_interest_prefix, "初学", interest)
-                recall_series += await lrange_redis(key, 0, -1)
+            for app_interest in user_interests:
+                for interest in online_interest_mapping(app_interest):
+                    key = "{}{}_{}".format(self.level_interest_prefix, interest, "入门")
+                    recall_series += await lrange_redis(key, 0, -1)
+                    key = "{}{}_{}".format(self.level_interest_prefix, interest, "初学")
+                    recall_series += await lrange_redis(key, 0, -1)
             
         elif user_level == 2:
-            for interest in user_interests:
-                key = "{}{}_{}".format(self.level_interest_prefix, "中等", interest)
-                recall_series = await lrange_redis(key, 0, -1)
+            for app_interest in user_interests:
+                for interest in online_interest_mapping(app_interest):
+                    key = "{}{}_{}".format(self.level_interest_prefix, interest, "中等")
+                    recall_series = await lrange_redis(key, 0, -1)
         else:
-            for interest in user_interests:
-                key = "{}{}_{}".format(self.level_interest_prefix, "高级", interest)
-                recall_series = await lrange_redis(key, 0, -1)
+            for app_interest in user_interests:
+                for interest in online_interest_mapping(app_interest):
+                    key = "{}{}_{}".format(self.level_interest_prefix, interest, "难")
+                    recall_series = await lrange_redis(key, 0, -1)
         rd.shuffle(recall_series)
         recall_videos = []
         for i in range(min(len(recall_series), self.recall_from_series_count)):
@@ -235,8 +238,8 @@ if __name__ == "__main__":
     # key = "video_pop"
     # key = "video_series_level-入门"
     # key = "video_series-pnu1"
-    # key = "video_series_interest_level-高级_"
-    key = "video_customize-KAU777"
+    key = "video_series_interest_level-旅行_难"
+    # key = "video_customize-KAU777"
     async def main():
         await init_redis_pool()  # 首先需要初始化redis连接
         recall_series = await lrange_redis(key, 0, -1)
