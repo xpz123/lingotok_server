@@ -40,7 +40,7 @@ class RecommenderCtx:
 
         self.recall_result_dict = {}
         
-        self.rank_result = None
+        self.rank_result = []
 
         self.rerank_result = None
     
@@ -84,8 +84,8 @@ class PrerecallStrategy:
 class Ranker:
     def __init__(self):
         self.newcommer_recall_counts = 20
-        self.primary_ratio = 0.4
-        self.latest_ratio = 0.2
+        self.primary_ratio = 0.6
+        self.pop_ratio = 0.2
         self.random_ratio = 0.2
 
     def newcomer_rank_strategy(self, recommender_ctx):
@@ -109,7 +109,7 @@ class Ranker:
             self.newcomer_rank_strategy(recommender_ctx)
         else:
             recommender_ctx.rank_result += recommender_ctx.recall_result_dict["level"][:(int(recommender_ctx.size * self.primary_ratio))]
-            recommender_ctx.rank_result += recommender_ctx.recall_result_dict["latest"][:(int(recommender_ctx.size * self.latest_ratio))]
+            recommender_ctx.rank_result += recommender_ctx.recall_result_dict["pop"][:(int(recommender_ctx.size * self.pop_ratio))]
             recommender_ctx.rank_result += recommender_ctx.recall_result_dict["random"][:(int(recommender_ctx.size * self.random_ratio))]
 
         if len(recommender_ctx.rank_result) < recommender_ctx.size:
