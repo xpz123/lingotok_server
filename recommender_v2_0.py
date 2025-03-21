@@ -115,6 +115,7 @@ class Ranker:
         if len(recommender_ctx.rank_result) < recommender_ctx.size:
             recommender_ctx.rank_result += recommender_ctx.recall_result_dict["random"][(int(recommender_ctx.size * self.random_ratio)):]
         
+        recommender_ctx.rank_result = list(set(recommender_ctx.rank_result))
         rd.shuffle(recommender_ctx.rank_result)
 
 class ReRanker:
