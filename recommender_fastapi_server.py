@@ -70,8 +70,8 @@ class UserBehaviorInfo(BaseModel):
 
 
 class RecommendVideoRequest(BaseModel):
-    user_id: str
-    user_info: UserInfo
+    user_id: Optional[str] = None
+    user_info: Optional[UserInfo] = None
     size: int
     user_behavior_info: Optional[UserBehaviorInfo] = None
     req_id: Optional[str] = None
@@ -84,6 +84,18 @@ async def recommend_video_v1(input_data: RecommendVideoRequest):
     try:
         input_data.req_id = req_id
         video_id_list = await recommender.recommend(input_data)
+        return {"video_id_list": video_id_list, "code": 200, "title_list": [], "req_id": req_id}
+    except Exception as e:
+        print(e)
+        return {"code": -1, "video_id_list": [], "req_id": req_id, "title_list": []}
+
+@app.post('/recommend_video_without_userinfo')
+async def recommend_video_without_userinfo(input_data: RecommendVideoRequest):
+    # Generate reqid
+    req_id = str(uuid.uuid4())
+    try:
+        input_data.req_id = req_id
+        video_id_list = await recommender.recommend_without_userinfo(input_data)
         return {"video_id_list": video_id_list, "code": 200, "title_list": [], "req_id": req_id}
     except Exception as e:
         print(e)

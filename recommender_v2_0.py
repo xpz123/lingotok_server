@@ -125,6 +125,7 @@ class ReRanker:
         watched_video_list = []
         not_watched_video_list = []
         watched_video_list_withtime = list()
+        
         for video_id in recommender_ctx.rank_result:
             if video_id in recommender_ctx.recent_watch_videoid_set:
                 watched_video_list.append(video_id)
@@ -176,7 +177,19 @@ class RecommenderV2_0:
                     recent_watched_videoid_time[video.video_info.video_id] = video.watch_time
         return recent_watched_videoid_time
 
-    
+    async def recommend_without_userinfo(self, input_data):
+        recommender_ctx = RecommenderCtx()
+        recommender_ctx.input_data = input_data
+        size = input_data.size
+        size = min(20, size)
+        recommender_ctx.size = size
+
+        pop_video_ids = await self.recaller_dict["pop"].recall(input_data)
+        recommender_ctx.recall_result_dict["pop"] = pop_video_ids
+        recommender_ctx.rank_result = pop_video_ids
+        recommender_ctx.rerank_result = pop_video_ids
+        return recommender_ctx.rerank_result[:size]
+        
 
     async def recommend(self, input_data):
         recommender_ctx = RecommenderCtx()
