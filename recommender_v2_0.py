@@ -52,8 +52,8 @@ class RecommenderCtx:
 
 class PrerecallStrategy:
     def __init__(self):
-        # 开屏建议视频：山、一、你好、再见、欢迎
-        self.newcomer_video_ids = ["67e3d887690991cd5a591347", "67b4a9cd0efa0542fbfe3dab", "6796909d4201172bc75ffe31", "67a0ff1a3f4ca0bb2aa31126", "67a0ff253f4ca0bb2aa3112a"]
+        # 开屏建议视频：山（动画）、汉语（写字）、 名字（写字）、再见（表情）、欢迎（表情）
+        self.newcomer_video_ids = ["67e3d887690991cd5a591347", "67ed0b30d1f8badc42c1da39", "67ed0b103e7f08b27c77fa12", "67a0ff1a3f4ca0bb2aa31126", "67a0ff253f4ca0bb2aa3112a"]
         self.newcommer_recall_counts = 20
 
     async def check_user_status(self, user_behavior_info):
