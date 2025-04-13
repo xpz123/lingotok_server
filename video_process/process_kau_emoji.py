@@ -191,7 +191,11 @@ def upload_video(video_srt_file):
     
     df = pd.read_csv(video_srt_file)
     df.dropna(subset=["zh_srt"], axis=0, how="any", inplace=True)
-    
+
+def gif_to_mp4(gif_path):
+    cmd = "/opt/homebrew/Cellar/ffmpeg/7.1_4/bin/ffmpeg -loglevel error -y -i  \"{}\" -vf \"scale=trunc(iw/2)*2:trunc(ih/2)*2\" -c:v libx264 -pix_fmt yuv420p -movflags +faststart -crf 23 \"{}\"".format(gif_path, gif_path.replace(".gif", ".mp4").replace(".GIF", ".mp4"))
+    os.system(cmd)
+
 def convert_emojidir_to_csv(emoji_dir, out_csv):
     df_list = list()
     leagal_suffix = [".jpg", ".jpeg", ".png", ".gif", ".JPG", ".JPEG", ".PNG", ".GIF"]
@@ -204,6 +208,9 @@ def convert_emojidir_to_csv(emoji_dir, out_csv):
         if not is_legual:
             continue
         word = item.split(".")[0]
+        if item.endswith(".gif") or item.endswith(".GIF"):
+            gif_to_mp4(os.path.join(emoji_dir, item))
+            # item = item.replace(".gif", ".mp4").replace(".GIF", ".mp4")
         df_list.append([word, os.path.join(emoji_dir, item)])
     df = pd.DataFrame(df_list, columns=["单词", "emoji"])
     df.to_csv(out_csv, index=False)
@@ -214,7 +221,7 @@ def outdate_with_csv(create_csv, date):
     for i in tqdm(range(df.shape[0])):
         video_id = df.iloc[i]["video_id"]
         update_video_info(video_id, customize="KAU777_{}".format(date))
-        
+
 if __name__ == "__main__":
     # df = pd.read_csv("/Users/tal/work/lingtok_server/video_process/沙特女子Demo/初级汉语/词汇练习/words_refined.csv")
     # df = pd.read_excel("/Users/tal/work/lingtok_server/video_process/沙特女子Demo/初级汉语/真-初级口语1+2/初级口语1/words_chap1.xls")
@@ -224,8 +231,11 @@ if __name__ == "__main__":
 
     # root_dir = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/KAU-lecture/0126"
     root_dir = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/KAU-lecture/0203"
+    # root_dir = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/KAU-lecture/0212"
+    # root_dir = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/KAU-lecture/0219"
     emoji_dir = os.path.join(root_dir, "学中文表情包")
-    create_tag = "KAU777"
+    # create_tag = "KAU777"
+    create_tag = "PNU888"
 
     audio_dir = os.path.join(root_dir, "audios")
     if not os.path.exists(audio_dir):
@@ -245,18 +255,22 @@ if __name__ == "__main__":
     vod_csv = os.path.join(root_dir, "vod.csv")
     create_csv = os.path.join(root_dir, "create.csv")
 
-    skip_outdate = False
+    skip_outdate = True
     skip_quiz = True
     skip_py_arword = True
     skip_video = True
     skip_srt = True
     skip_tag = True
-    skip_vod = True
-    skip_create = True
+    skip_vod = False
+    skip_create = False
 
     if not skip_outdate:
-        prev_csv = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/KAU-lecture/0126/create.csv"
-        outdate_with_csv(prev_csv, "0126")
+        # prev_csv = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/KAU-lecture/0126/create.csv"
+        # prev_csv = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/KAU-lecture/0203/create.csv"
+        prev_csv = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/KAU-lecture/0212/create.csv"
+        # outdate_with_csv(prev_csv, "0126")
+        # outdate_with_csv(prev_csv, "0203")
+        outdate_with_csv(prev_csv, "0212")
 
 
     convert_emojidir_to_csv(emoji_dir, emoji_csv)
@@ -309,7 +323,7 @@ if __name__ == "__main__":
     
     if not skip_py_arword:
         add_pinyin(quiz_csv, word_py_csv)
-        trans_word_to_ar(word_py_csv, word_py_ar_csv)
+        # trans_word_to_ar(word_py_csv, word_py_ar_csv)
 
     if not skip_video:
         # fj_video_dir = "/Users/tal/work/lingtok_server/video_process/hw/videos/风景视频"

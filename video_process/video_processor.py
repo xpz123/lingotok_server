@@ -19,7 +19,7 @@ import pandas as pd
 from pypinyin import pinyin
 import cv2
 import math
-os.environ["IMAGEIO_FFMPEG_EXE"] = "/opt/homebrew/Cellar/ffmpeg/7.1_3/bin/ffmpeg"
+os.environ["IMAGEIO_FFMPEG_EXE"] = "/opt/homebrew/Cellar/ffmpeg/7.1_4/bin/ffmpeg"
 from moviepy.editor import VideoFileClip
 from copy import deepcopy
 
@@ -691,10 +691,12 @@ class VideoProcessor:
 		zh_text_list.append(quiz["explanation"])
 		res = dict()
 		if gen_ar:
+			print (zh_text_list)
 			ar_text_list = translate_text2ar(zh_text_list, "ar")
 			assert len(ar_text_list) == len(zh_text_list)
 			res["ar_quiz"] = {"question": ar_text_list[0]["Translation"], "options": ["A. " + ar_text_list[1]["Translation"], "B. " + ar_text_list[2]["Translation"], "C. " + ar_text_list[3]["Translation"], "D. " + ar_text_list[4]["Translation"]], "answer": quiz["answer"], "explanation": ar_text_list[5]["Translation"]}
 		if gen_en:
+			print (zh_text_list)
 			en_text_list = translate_text2ar(zh_text_list, "en")
 			assert len(en_text_list) == len(zh_text_list)
 			res["en_quiz"] = {"question": en_text_list[0]["Translation"], "options": ["A. " + en_text_list[1]["Translation"], "B. " + en_text_list[2]["Translation"], "C. " + en_text_list[3]["Translation"], "D. " + en_text_list[4]["Translation"]], "answer": quiz["answer"], "explanation": en_text_list[5]["Translation"]}

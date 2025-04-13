@@ -256,8 +256,24 @@ def upload_hw_withcsv(video_info_csv, out_csv):
     df_new = pd.DataFrame(df_new_list, columns=columns)
     df_new.to_csv(out_csv, index=False)
 
+def show_playurls_by_assetid(asset_id_list):
+    request = ShowAssetMetaRequest()
+    request.asset_id = asset_id_list
+    response = client.show_asset_meta(request)
+    assert len(response.asset_info_array) == len(asset_id_list)
+    
+    video_urls = []
+    for asset_info in response.asset_info_array:
+        video_url = asset_info.base_info.video_url
+        video_urls.append(video_url)
+    
+    assert len(video_urls) == len(asset_id_list)
+    
+    return video_urls
+
 if __name__ == "__main__":
-    pass
+    show_asset_meta_by_assetid(["a5ab5ce9b4e6f1e1901343d555938ee4"])
+    # pass
     # df = pd.read_csv("/Users/tal/work/lingtok_server/video_info_hw_created.csv")
     # df.drop("asset_id", axis=1, inplace=True)
     # df.drop("video_id", axis=1, inplace=True)

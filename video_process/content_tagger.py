@@ -25,11 +25,12 @@ def tag_video_info_csv_audio_ratio(csv_filename, new_csv_filename):
             df.at[i, "audio_ratio"] = 0
     df.to_csv(new_csv_filename)
 
-def update_video_info_csv_level(csv_filename, new_csv_filename):
+def update_video_info_csv_level(csv_filename, new_csv_filename, with_level=True):
     content_tagger = ContentTagger()
     df = pd.read_csv(csv_filename)
     columns = df.columns.to_list()
-    columns.append("level")
+    if with_level:
+        columns.append("level")
     columns.append("audio_ratio")
     columns.append("audio_dur")
     df_list = df.values.tolist()
@@ -43,11 +44,13 @@ def update_video_info_csv_level(csv_filename, new_csv_filename):
             level = -1
             audio_ratio = 0
             audio_dur = 0
-        df_list[i].append(level)
+        if with_level:
+            df_list[i].append(level)
         df_list[i].append(audio_ratio)
         df_list[i].append(audio_dur)
     df_new = pd.DataFrame(df_list, columns=columns)
     df_new.to_csv(new_csv_filename, index=False)
+
 
 class ContentTagger:
     def __init__(self):
@@ -84,7 +87,19 @@ class ContentTagger:
         
         # init VideoProcessor
         self.video_processor = VideoProcessor()
+    
+    def get_hsk_level_word_list(self, level):
+        return self.hsk_level_word_dict["level{}".format(level)]
 
+    def tag_word_video_hsklevel(self, word, level=None):
+        if not level:
+            assert level in [1, 2, 3, 4, 5, 6]
+            return level
+        else:
+            for i in range(1, 7):
+                if word in self.hsk_level_word_dict["level{}".format(i)]:
+                    return i
+        return 6
 
 
     def tag_video_hsklevel(self, srt_filepath, video_filepath):
@@ -130,6 +145,7 @@ class ContentTagger:
         print ("speed level {}".format(speed_level_value))
 
         audio_ratio, audio_dur = self.tag_audio_ratio(video_filepath, srt_filepath)
+        
         print ("audio ratio {}".format(audio_ratio))
         ratio_level_value = 1
         for level_idx, ratio in enumerate(self.hsk_level_ratio):
