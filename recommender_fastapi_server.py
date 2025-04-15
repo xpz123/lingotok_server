@@ -1,5 +1,6 @@
 from recaller import init_redis_pool, close_redis_pool
 from recommender_v2_0 import RecommenderV2_0
+from quiz_generator import QuizGenerator
 
 import uuid
 from typing import Optional, Union, List
@@ -9,9 +10,8 @@ from fastapi import FastAPI, Body
 from pydantic import BaseModel, HttpUrl
 import asyncio
 
-# recommender = Recommender()
-# recommenderv1_1 = RecommenderV1_1()
 recommender = RecommenderV2_0()
+quiz_generator = QuizGenerator()
 
 app = FastAPI()
 
@@ -84,10 +84,14 @@ async def recommend_video_v1(input_data: RecommendVideoRequest):
     try:
         input_data.req_id = req_id
         video_id_list = await recommender.recommend(input_data)
-        return {"video_id_list": video_id_list, "code": 200, "title_list": [], "req_id": req_id}
+        quiz_list = []
+        for video_id in video_id_list:
+            quiz = quiz_generator.generate_quiz(video_id)
+            quiz_list.append(quiz)
+        return {"video_id_list": video_id_list, "code": 200, "title_list": [], "req_id": req_id, "quiz_list": quiz_list}
     except Exception as e:
         print(e)
-        return {"code": -1, "video_id_list": [], "req_id": req_id, "title_list": []}
+        return {"code": -1, "video_id_list": [], "req_id": req_id, "title_list": [], "quiz_list": []}
 
 @app.post('/recommend_video_without_userinfo')
 async def recommend_video_without_userinfo(input_data: RecommendVideoRequest):
@@ -96,10 +100,14 @@ async def recommend_video_without_userinfo(input_data: RecommendVideoRequest):
     try:
         input_data.req_id = req_id
         video_id_list = await recommender.recommend_without_userinfo(input_data)
-        return {"video_id_list": video_id_list, "code": 200, "title_list": [], "req_id": req_id}
+        quiz_list = []
+        for video_id in video_id_list:
+            quiz = quiz_generator.generate_quiz(video_id)
+            quiz_list.append(quiz)
+        return {"video_id_list": video_id_list, "code": 200, "title_list": [], "req_id": req_id, "quiz_list": quiz_list}
     except Exception as e:
         print(e)
-        return {"code": -1, "video_id_list": [], "req_id": req_id, "title_list": []}
+        return {"code": -1, "video_id_list": [], "req_id": req_id, "title_list": [], "quiz_list": []}
 
 
 if __name__ == "__main__":
