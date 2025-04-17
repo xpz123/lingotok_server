@@ -1,6 +1,6 @@
 from recaller import init_redis_pool, close_redis_pool
 from recommender_v2_0 import RecommenderV2_0
-from recommender.quiz_generator import QuizGenerator
+from quiz_generator import QuizGenerator
 
 import uuid
 from typing import Optional, Union, List
