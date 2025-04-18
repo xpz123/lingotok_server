@@ -9,7 +9,7 @@ import logging
 import logging.handlers
 import os
 from recaller import CustomizedRecaller, LevelRecaller, RandomRecaller, PopRecaller, LevelInterestRecaller
-from user_profile_generator import UserProfileGenerator, UserProfileCtx
+from recommender.user_profile_generator import UserProfileGenerator, UserProfileCtx
 
 
 class RecommenderCtx:
