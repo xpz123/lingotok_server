@@ -278,7 +278,7 @@ class CharPinyinQuizGeneratingWorker(QuizGeneratingWorker):
         
 class QuizGeneratingWorkerFactory:
     def __init__(self):
-        quiz_worker_config = {"hsk_zh_en_ar_path": "video_process/hsk_dictionary/HSK_zh_en_ar.csv", "hsk_char_path": "video_process/hsk_dictionary/HSK_char.csv"}
+        quiz_worker_config = {"hsk_zh_en_ar_path": "../video_process/hsk_dictionary/HSK_zh_en_ar.csv", "hsk_char_path": "../video_process/hsk_dictionary/HSK_char.csv"}
         self.word_translation_quiz_worker = WordTranslationQuizGeneratingWorker(quiz_worker_config)
         self.char_filling_quiz_worker = CharFillingQuizGeneratingWorker(quiz_worker_config)
         self.char_pinyin_quiz_worker = CharPinyinQuizGeneratingWorker(quiz_worker_config)

@@ -9,12 +9,13 @@ import logging
 import logging.handlers
 import os
 from recaller import CustomizedRecaller, LevelRecaller, RandomRecaller, PopRecaller, LevelInterestRecaller
+from user_profile_generator import UserProfileGenerator, UserProfileCtx
 
 
 class RecommenderCtx:
     def __init__(self):
-        self.input_data = None
-        self.user_behavior_info = None
+        self.recommender_input = None
+        self.user_profile_ctx = None
         self.recent_watch_videoid_set = None
         self.recent_watch_videoid_time = None
         self.user_status = None
@@ -45,16 +46,16 @@ class PrerecallStrategy:
         # 0 : 全新用户，没有观看记录
         # 1: 新用户，观看视频数量小于10个
         # 2: 老用户，观看数量超过10个
-        recent_watch_video_list = user_behavior_info.recent_watch_video_list
-        if recent_watch_video_list is None:
+        recent_watch_videoid_list = user_behavior_info.recent_watch_videoid_list
+        if recent_watch_videoid_list is None:
             return 0
-        if len(recent_watch_video_list) == 0:
+        if len(recent_watch_videoid_list) == 0:
             return 0
-        if len(recent_watch_video_list) < 20:
+        if len(recent_watch_videoid_list) < 20:
             return 1
         return 2
     async def action(self, recommender_ctx):
-        user_status = await self.check_user_status(recommender_ctx.user_behavior_info)
+        user_status = await self.check_user_status(recommender_ctx.user_profile_ctx.user_behavior_info)
         recommender_ctx.user_status = user_status
         if user_status == 0:
             recommender_ctx.recommended_videoids = self.newcomer_video_ids
@@ -113,7 +114,7 @@ class ReRanker:
         for video_id in recommender_ctx.rank_result:
             if video_id in recommender_ctx.recent_watch_videoid_set:
                 watched_video_list.append(video_id)
-                watched_video_list_withtime.append((video_id, recommender_ctx.recent_watched_videoid_time.get(video_id, -1)))
+                watched_video_list_withtime.append((video_id, recommender_ctx.recent_watch_videoid_time.get(video_id, -1)))
             else:
                 not_watched_video_list.append(video_id)
         # watched_video_list = list(reversed(watched_video_list))
@@ -129,6 +130,7 @@ class RecommenderV2_0:
         # self.recaller_dict = {"latest": LatestRecaller(), "customized": CustomizedRecaller(), "continuous": ContinuousRecaller(), "series": SeriesRecaller(), "level": LevelRecaller(), "random": RandomRecaller(), "pop": PopRecaller(), "level_interest": LevelInterestRecaller()}
         self.recaller_dict = {"customized": CustomizedRecaller(), "level": LevelRecaller(), "random": RandomRecaller(), "pop": PopRecaller(), "level_interest": LevelInterestRecaller()}
         self.prerecall_strategy = PrerecallStrategy()
+        self.user_profile_generator = UserProfileGenerator()
         self.ranker = Ranker()
         self.rerank_strategy = ReRanker()
         # self.ranker = Ranker()
@@ -137,61 +139,59 @@ class RecommenderV2_0:
         self.random_ratio = 0.2
     
     def fetch_recent_watched_videos(self, user_behavior_info):
-        recent_watch_videoid_set = set()
-        recent_watch_video_list = user_behavior_info.recent_watch_video_list
-        if not recent_watch_video_list is None:
-            for video in recent_watch_video_list:
-                recent_watch_videoid_set.add(video.video_info.video_id)
-        like_video_list = user_behavior_info.recent_like_video_list
-        if not like_video_list is None:
-            for video in like_video_list:
-                recent_watch_videoid_set.add(video.video_info.video_id)
-        favorite_video_list = user_behavior_info.recent_favorite_video_list
-        if not favorite_video_list is None:
-            for video in favorite_video_list:
-                recent_watch_videoid_set.add(video.video_info.video_id)
+        recent_watch_videoid_set = set(user_behavior_info.recent_watch_videoid_list + user_behavior_info.recent_like_videoid_list + user_behavior_info.recent_favorite_videoid_list)
         return recent_watch_videoid_set
     
     def fetch_recent_watched_videos_time(self, user_behavior_info):
         recent_watched_videoid_time = dict()
-        recent_watch_video_list = user_behavior_info.recent_watch_video_list
+        recent_watch_video_list = user_behavior_info.recent_watch_videoid_list
         if not recent_watch_video_list is None:
-            for video in recent_watch_video_list:
-                if not video.watch_time is None:
-                    recent_watched_videoid_time[video.video_info.video_id] = video.watch_time
+            time = 10000
+            for video_id in recent_watch_video_list:
+                recent_watched_videoid_time[video_id] = time
+                time -= 1
         return recent_watched_videoid_time
 
-    async def recommend_without_userinfo(self, input_data):
+    async def recommend_without_userinfo(self, recommender_input):
         recommender_ctx = RecommenderCtx()
-        recommender_ctx.input_data = input_data
-        size = input_data.size
+        recommender_ctx.recommender_input = recommender_input
+        size = recommender_input["size"]
         size = min(20, size)
         recommender_ctx.size = size
 
-        pop_video_ids = await self.recaller_dict["pop"].recall(input_data)
+        pop_video_ids = await self.recaller_dict["pop"].recall(recommender_ctx)
         recommender_ctx.recall_result_dict["pop"] = pop_video_ids
         recommender_ctx.rank_result = pop_video_ids
         recommender_ctx.rerank_result = pop_video_ids
         return recommender_ctx.rerank_result[:size]
         
 
-    async def recommend(self, input_data):
+    async def recommend(self, recommender_input):
         recommender_ctx = RecommenderCtx()
-        recommender_ctx.input_data = input_data
-        size = input_data.size
+        recommender_ctx.recommender_input = recommender_input
+        size = recommender_input["size"]
         size = min(20, size)
 
         recommender_ctx.size = size
-        req_id = input_data.req_id
+        req_id = recommender_input["req_id"]
 
-        user_behavior_info = input_data.user_behavior_info
+        user_profile_ctx = UserProfileCtx()
+        recommender_ctx.user_profile_ctx = user_profile_ctx
+        user_profile_ctx.user_id = recommender_input["user_id"]
+
+        generate_user_profile_success = await self.user_profile_generator.generate_user_profile(recommender_ctx.user_profile_ctx)
+        if not generate_user_profile_success:
+            return await self.recommend_without_userinfo(recommender_input)
+        
+        # print (recommender_ctx.user_profile_ctx.user_basic_info.dict())
+
+        user_behavior_info = recommender_ctx.user_profile_ctx.user_behavior_info
 
         # Fetch recent watched video_id from recent_watch_video_list, recent_like_video_list, recent_favorite_video_list
         recommender_ctx.recent_watch_videoid_set = self.fetch_recent_watched_videos(user_behavior_info)
-        recommender_ctx.recent_watched_videoid_time = self.fetch_recent_watched_videos_time(user_behavior_info)
+        recommender_ctx.recent_watch_videoid_time = self.fetch_recent_watched_videos_time(user_behavior_info)
 
         # Pre-Recall Strategy
-        recommender_ctx.user_behavior_info = user_behavior_info
         await self.prerecall_strategy.action(recommender_ctx)
 
         # Check if the pre-recall strategy is ready to return, only for Open-Screen Recommendation
@@ -208,8 +208,8 @@ class RecommenderV2_0:
             # 为每个recaller添加超时控制
             task = asyncio.create_task(
                 asyncio.wait_for(
-                    self.recaller_dict[recaller_name].recall(input_data),
-                    timeout=30.0  # 设置30秒超时
+                    self.recaller_dict[recaller_name].recall(recommender_ctx),
+                    timeout=10.0  # 设置10秒超时
                 )
             )
             tasks.append(task)
@@ -221,6 +221,9 @@ class RecommenderV2_0:
             logging.error(f"Some recallers timed out for req_id: {req_id}")
 
         # 处理结果
+        # print (recall_results)
+        # print (recaller_names)
+
         assert len(recall_results) == len(recaller_names)
         for i in range(len(recall_results)):
             recall_result = recall_results[i]
@@ -228,6 +231,7 @@ class RecommenderV2_0:
             try:
                 # Avoid the recall_result is not a list
                 if type(recall_result) != list:
+                    recommender_ctx.recall_result_dict[recaller_name] = []
                     continue
 
                 if recaller_name == "customized":
@@ -246,7 +250,6 @@ class RecommenderV2_0:
                 print(str(e))
                 recommender_ctx.recall_result_dict[recaller_name] = []
 
-        
         # Rank
         await self.ranker.rank(recommender_ctx)
 

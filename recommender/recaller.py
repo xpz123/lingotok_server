@@ -78,12 +78,12 @@ async def lrange_redis(key, start, end):
 class Recaller:
     def __init__(self):
         pass
-    async def recall(self, input_data):
+    async def recall(self, recommender_ctx):
         return {}
 class LatestRecaller(Recaller):
     def __init__(self):
         self.recall_count = 10
-    async def recall(self, input_data):
+    async def recall(self, recommender_ctx):
         # start_time = time.time()
         redis_data = await get_redis("latest_videos")
         latest_videos = ujson.loads(redis_data)
@@ -94,8 +94,8 @@ class LatestRecaller(Recaller):
 class CustomizedRecaller(Recaller):
     def __init__(self):
         self.recall_count = 10
-    async def recall(self, input_data):
-        basic_user_info = input_data.user_info
+    async def recall(self, recommender_ctx):
+        basic_user_info = recommender_ctx.user_profile_ctx.user_basic_info
         invite_code = basic_user_info.invite_code
         try:
             customize_videos = await lrange_redis("video_customize-{}".format(invite_code), 0, -1)
@@ -104,46 +104,46 @@ class CustomizedRecaller(Recaller):
         except:
             return []
 
-class ContinuousRecaller(Recaller):
-    def __init__(self):
-        self.recall_count = 10
-    async def recall(self, input_data):
-        recall_videos = []
-        user_behavior_info = input_data.user_behavior_info
-        recent_watch_video_list = user_behavior_info.recent_watch_video_list
-        if recent_watch_video_list is None:
-            recent_watch_video_list = []
-        for watched_video in recent_watch_video_list:
-            if watched_video.watch_complete:
-                series_videos_str = await get_redis("series_videos_{}".format(watched_video.video_info.series_name))
-                series_videos = ujson.loads(series_videos_str)
-                if len(series_videos) < (watched_video.video_info.series_sequence + 1):
-                    recall_videos.append(series_videos[watched_video.video_info.series_sequence + 1])
+# class ContinuousRecaller(Recaller):
+#     def __init__(self):
+#         self.recall_count = 10
+#     async def recall(self, recommender_ctx):
+#         recall_videos = []
+#         user_behavior_info = recommender_ctx.user_profile_ctx.user_behavior_info
+#         recent_watch_video_list = user_behavior_info.recent_watch_videoid_list
+#         if recent_watch_video_list is None:
+#             recent_watch_video_list = []
+#         for watched_video in recent_watch_video_list:
+#             if watched_video.watch_complete:
+#                 series_videos_str = await get_redis("series_videos_{}".format(watched_video.video_info.series_name))
+#                 series_videos = ujson.loads(series_videos_str)
+#                 if len(series_videos) < (watched_video.video_info.series_sequence + 1):
+#                     recall_videos.append(series_videos[watched_video.video_info.series_sequence + 1])
         
-        recent_like_list = user_behavior_info.recent_like_video_list
-        if recent_like_list is None:
-            recent_like_list = []
-        recent_favorite_list = user_behavior_info.recent_favorite_video_list
-        if recent_favorite_list is None:
-            recent_favorite_list = []
-        like_favorite_video_list = recent_like_list + recent_favorite_list
-        for video in like_favorite_video_list:
-            series_videos_str = await get_redis("series_videos_{}".format(video.video_info.series_name))
-            series_videos = ujson.loads(series_videos_str)
-            if len(series_videos) < (video.video_info.series_sequence + 1):
-                recall_videos.append(series_videos[video.video_info.series_sequence + 1])
+#         recent_like_list = user_behavior_info.recent_like_video_list
+#         if recent_like_list is None:
+#             recent_like_list = []
+#         recent_favorite_list = user_behavior_info.recent_favorite_video_list
+#         if recent_favorite_list is None:
+#             recent_favorite_list = []
+#         like_favorite_video_list = recent_like_list + recent_favorite_list
+#         for video in like_favorite_video_list:
+#             series_videos_str = await get_redis("series_videos_{}".format(video.video_info.series_name))
+#             series_videos = ujson.loads(series_videos_str)
+#             if len(series_videos) < (video.video_info.series_sequence + 1):
+#                 recall_videos.append(series_videos[video.video_info.series_sequence + 1])
         
-        rd.shuffle(recall_videos)
-        return recall_videos[:self.recall_count]
+#         rd.shuffle(recall_videos)
+#         return recall_videos[:self.recall_count]
     
 class LevelRecaller(Recaller):
     def __init__(self):
         self.recall_from_series_count = 3
         self.recall_count = 20
         self.max_each_series_count = 10
-    async def recall(self, input_data):
+    async def recall(self, recommender_ctx):
         # recall_videos = []
-        user_level = input_data.user_info.level
+        user_level = recommender_ctx.user_profile_ctx.user_basic_info.level
         level_prefix = "video_series_level-"
         # user_level <= 1时， 从redis获取入门、初学系列
         recall_series = []
@@ -171,9 +171,10 @@ class LevelInterestRecaller(Recaller):
         self.recall_count = 20
         self.recall_from_series_count = 3
         self.level_interest_prefix = "video_series_interest_level-"
-    async def recall(self, input_data):
-        user_level = input_data.user_info.level
-        user_interests = input_data.user_info.interests
+    async def recall(self, recommender_ctx):
+        
+        user_level = recommender_ctx.user_profile_ctx.user_basic_info.level
+        user_interests = recommender_ctx.user_profile_ctx.user_basic_info.interests
         if user_interests is None:
             return []
         if len(user_interests) == 0:
@@ -191,12 +192,12 @@ class LevelInterestRecaller(Recaller):
             for app_interest in user_interests:
                 for interest in online_interest_mapping(app_interest):
                     key = "{}{}_{}".format(self.level_interest_prefix, interest, "中等")
-                    recall_series = await lrange_redis(key, 0, -1)
+                    recall_series += await lrange_redis(key, 0, -1)
         else:
             for app_interest in user_interests:
                 for interest in online_interest_mapping(app_interest):
                     key = "{}{}_{}".format(self.level_interest_prefix, interest, "难")
-                    recall_series = await lrange_redis(key, 0, -1)
+                    recall_series += await lrange_redis(key, 0, -1)
         rd.shuffle(recall_series)
         recall_videos = []
         for i in range(min(len(recall_series), self.recall_from_series_count)):
@@ -205,43 +206,43 @@ class LevelInterestRecaller(Recaller):
         return recall_videos[:self.recall_count]
         
     
-class SeriesRecaller(Recaller):
-    def __init__(self):
-        self.recall_count = 10
-        self.series_recall_count = 5
-    async def recall(self, input_data):
-        recall_videos = []
-        user_behavior_info = input_data.user_behavior_info
-        recent_watch_video_list = user_behavior_info.recent_watch_video_list
-        if recent_watch_video_list is None:
-            recent_watch_video_list = []
-        for watched_video in recent_watch_video_list:
-            if watched_video.watch_complete:
-                series_videos_str = await get_redis("series_videos_{}".format(watched_video.video_info.series_name))
-                series_videos = ujson.loads(series_videos_str)
-                rd.shuffle(series_videos)
-                recall_videos += series_videos[:self.series_recall_count]
+# class SeriesRecaller(Recaller):
+#     def __init__(self):
+#         self.recall_count = 10
+#         self.series_recall_count = 5
+#     async def recall(self, input_data):
+#         recall_videos = []
+#         user_behavior_info = input_data.user_behavior_info
+#         recent_watch_video_list = user_behavior_info.recent_watch_video_list
+#         if recent_watch_video_list is None:
+#             recent_watch_video_list = []
+#         for watched_video in recent_watch_video_list:
+#             if watched_video.watch_complete:
+#                 series_videos_str = await get_redis("series_videos_{}".format(watched_video.video_info.series_name))
+#                 series_videos = ujson.loads(series_videos_str)
+#                 rd.shuffle(series_videos)
+#                 recall_videos += series_videos[:self.series_recall_count]
         
-        recent_like_list = user_behavior_info.recent_like_video_list
-        if recent_like_list is None:
-            recent_like_list = []
-        recent_favorite_list = user_behavior_info.recent_favorite_video_list
-        if recent_favorite_list is None:
-            recent_favorite_list = []
-        like_favorite_video_list = recent_like_list + recent_favorite_list
-        for video in like_favorite_video_list:
-            series_videos_str = await get_redis("series_videos_{}".format(video.video_info.series_name))
-            series_videos = ujson.loads(series_videos_str)
-            rd.shuffle(series_videos)
-            recall_videos += series_videos[:self.series_recall_count]
+#         recent_like_list = user_behavior_info.recent_like_video_list
+#         if recent_like_list is None:
+#             recent_like_list = []
+#         recent_favorite_list = user_behavior_info.recent_favorite_video_list
+#         if recent_favorite_list is None:
+#             recent_favorite_list = []
+#         like_favorite_video_list = recent_like_list + recent_favorite_list
+#         for video in like_favorite_video_list:
+#             series_videos_str = await get_redis("series_videos_{}".format(video.video_info.series_name))
+#             series_videos = ujson.loads(series_videos_str)
+#             rd.shuffle(series_videos)
+#             recall_videos += series_videos[:self.series_recall_count]
         
-        rd.shuffle(recall_videos)
-        return recall_videos[:self.recall_count]
+#         rd.shuffle(recall_videos)
+#         return recall_videos[:self.recall_count]
 
 class RandomRecaller(Recaller):
     def __init__(self):
         self.recall_count = 20
-    async def recall(self, input_data):
+    async def recall(self, recommender_ctx):
         random_video_ids = await lrange_redis("video_random", 0, -1)
         rd.shuffle(random_video_ids)
         return random_video_ids[:self.recall_count]
@@ -250,7 +251,7 @@ class PopRecaller(Recaller):
     def __init__(self):
         self.max_redis_count = 100
         self.recall_count = 50
-    async def recall(self, input_data):
+    async def recall(self, recommender_ctx):
         pop_video_ids_list = await zrange_redis("video_pop", 0, self.max_redis_count)
         pop_video_ids = [item[0] for item in pop_video_ids_list]
         rd.shuffle(pop_video_ids)
@@ -265,7 +266,7 @@ if __name__ == "__main__":
     # key = "video_series-pnu1"
     # key = "video_series_interest_level-旅行_难"
     # key = "video_customize-KAU777"
-    keys = ["video-67adba33f2eb187c98ad61fc", "video-67ad9f7ef2eb187c98ad5ee5"]
+    keys = ['video-67af00380efa0542fbfdfff5', 'video-67af1034f2eb187c98ad6ef9', 'video-67bdd5c732790b134f93ea51', 'video-6786a9ea0fcb32e4238fcec4', 'video-6781456f41a163009adbc072', 'video-677ed4f5c2a3a301cdb08a21', 'video-677e36f14195abbf0944363d', 'video-677222265094f908c47a6ad4', 'video-67af120ef2eb187c98ad6f11', 'video-678c7a3db1b7a679c45074f1', 'video-67aeaa0b0efa0542fbfdf8fb', 'video-677f7d6341a163009adbbb4d', 'video-677ea611c2a3a301cdb08968', 'video-677223fa170f6da8ffa64fce', 'video-67722424170f6da8ffa64ff0', 'video-678c6bde90cab62a6d35f088', 'video-67befeb2aaba77bbb7795283', 'video-67af1578f2eb187c98ad6f45', 'video-678cd1b5e19148c899eeb216', 'video-6772d1faf5a17f43b2787b54', 'video-677e37254195abbf09443665', 'video-677223d05094f908c47a6c14', 'video-67794daa55287df7f874aa98', 'video-67794ee655287df7f874abc6', 'video-677e204151db2063f2d1dff1', 'video-677aa3d450b32456b794e8dd', 'video-67794dcfe257f0bcbe9d49a8', 'video-6785cfc3f94c296761f2593a', 'video-677e426a4195abbf094436fb', 'video-677e3490c2a3a301cdb084d5', 'video-677e37484195abbf09443675', 'video-677e36614195abbf094435fb', 'video-67af15b30efa0542fbfe02b5', 'video-677e41d74195abbf094436a3', 'video-67794e4b55287df7f874ab42', 'video-67722543170f6da8ffa650e2', 'video-67b837960f12a8ea4447e970']
     async def main():
         await init_redis_pool()  # 首先需要初始化redis连接
         # recall_series = await lrange_redis(key, 0, -1)
@@ -273,7 +274,6 @@ if __name__ == "__main__":
         # recall_videos = await zrange_redis(key, 0, -1)
         results = await get_redis_concurrent(keys)
         print(results)
-        import pdb;pdb.set_trace()
         await close_redis_pool()  # 最后关闭redis连接
     
     asyncio.run(main())

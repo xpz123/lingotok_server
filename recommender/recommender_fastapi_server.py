@@ -70,7 +70,7 @@ class UserBehaviorInfo(BaseModel):
 
 
 class RecommendVideoRequest(BaseModel):
-    user_id: Optional[str] = None
+    user_id: str
     user_info: Optional[UserInfo] = None
     size: int
     user_behavior_info: Optional[UserBehaviorInfo] = None
@@ -82,12 +82,18 @@ async def recommend_video_v1(input_data: RecommendVideoRequest):
     # Generate reqid
     req_id = str(uuid.uuid4())
     try:
-        input_data.req_id = req_id
-        video_id_list = await recommender.recommend(input_data)
+        recommender_input = dict()
+        recommender_input["req_id"] = req_id
+        recommender_input["user_id"] = input_data.user_id
+        recommender_input["size"] = input_data.size
+
+        video_id_list = await recommender.recommend(recommender_input)
         quiz_dict = {}
         for video_id in video_id_list:
             quiz = await quiz_generator.generate_quiz(video_id)
-            quiz_dict[video_id] = quiz
+            quiz_type = quiz.get("quiz_type", "")
+            if quiz_type == 1:
+                quiz_dict[video_id] = quiz
         return {"video_id_list": video_id_list, "code": 200, "title_list": [], "req_id": req_id, "quiz_dict": quiz_dict}
     except Exception as e:
         print(e)
@@ -103,7 +109,9 @@ async def recommend_video_without_userinfo(input_data: RecommendVideoRequest):
         quiz_dict = {}
         for video_id in video_id_list:
             quiz = await quiz_generator.generate_quiz(video_id)
-            quiz_dict[video_id] = quiz
+            quiz_type = quiz.get("quiz_type", "")
+            if quiz_type == 1:
+                quiz_dict[video_id] = quiz
         return {"video_id_list": video_id_list, "code": 200, "title_list": [], "req_id": req_id, "quiz_dict": quiz_dict}
     except Exception as e:
         print(e)
