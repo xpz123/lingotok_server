@@ -81,6 +81,7 @@ class RecommendVideoRequest(BaseModel):
 async def recommend_video_v1(input_data: RecommendVideoRequest):
     # Generate reqid
     req_id = str(uuid.uuid4())
+    language_dict = {4: "zh", 3: "ar", 2: "en", 1: "pinyin"}
     try:
         recommender_input = dict()
         recommender_input["req_id"] = req_id
@@ -93,6 +94,9 @@ async def recommend_video_v1(input_data: RecommendVideoRequest):
             quiz = await quiz_generator.generate_quiz(video_id)
             quiz_type = quiz.get("quiz_type", "")
             if quiz_type == 1:
+                quiz["quiz_type"] = "single_choice"
+                for quiz_language in quiz["quiz_language_list"]:
+                    quiz_language["language"] = language_dict[quiz_language["language"]]
                 quiz_dict[video_id] = quiz
         return {"video_id_list": video_id_list, "code": 200, "title_list": [], "req_id": req_id, "quiz_dict": quiz_dict}
     except Exception as e:
