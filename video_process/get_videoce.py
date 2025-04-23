@@ -563,14 +563,14 @@ def prep_hw_data():
         cus_tag = "SAEKID"
         
         # For debug
-        skip_srt = False
-        skip_quiz = False
-        skip_add_cover = False
-        skip_tag_video = False
+        skip_srt = True
+        skip_quiz = True
+        skip_add_cover = True
+        skip_tag_video = True
         # skip_compress = True
-        skip_upload = True
+        skip_upload = False
 
-        skip_create = True
+        skip_create = False
         skip_update_recommender = True
 
         video_processor = VideoProcessor()
