@@ -91,6 +91,23 @@ class QuizGeneratingWorker:
     def able_to_generate(self, quiz_generating_ctx):
         pass
 
+    def to_dict(self, quiz_res):
+        content = dict()
+        content["question"] = quiz_res["quiz_language_list"][0]["question"]
+        content["options"] = quiz_res["quiz_language_list"][0]["options"]
+        content["answer"] = quiz_res["quiz_language_list"][0]["answer"]
+        content["explanation"] = quiz_res["quiz_language_list"][0]["explanation"]
+        
+        # multi_lingual_quiz = video_processor.translate_zh_quiz(content)
+        content["ar_question"] = quiz_res["quiz_language_list"][1]["question"]
+        content["ar_options"] = quiz_res["quiz_language_list"][1]["options"]
+        content["ar_explanation"] = quiz_res["quiz_language_list"][1]["explanation"]
+        content["en_question"] = quiz_res["quiz_language_list"][2]["question"]
+        content["en_options"] = quiz_res["quiz_language_list"][2]["options"]
+        content["en_explanation"] = quiz_res["quiz_language_list"][2]["explanation"]
+
+        return content
+
 class WordTranslationQuizGeneratingWorker(QuizGeneratingWorker):
     def __init__(self, quiz_worker_config):
         # 调用父类的__init__方法
@@ -171,7 +188,7 @@ class WordTranslationQuizGeneratingWorker(QuizGeneratingWorker):
 
         quiz_result = {
             "quiz_type": QuizType.single_choice.value,
-            "quiz_language_list": [zh_quiz, ar_quiz, en_quiz]
+            "quiz_language_list": [zh_quiz, en_quiz, ar_quiz]
         }
 
         return quiz_result
@@ -223,7 +240,7 @@ class CharFillingQuizGeneratingWorker(QuizGeneratingWorker):
 
         quiz_result = {
             "quiz_type": QuizType.single_choice.value,
-            "quiz_language_list": [zh_quiz, ar_quiz, en_quiz]
+            "quiz_language_list": [zh_quiz, en_quiz, ar_quiz]
         }
 
         return quiz_result
@@ -270,7 +287,7 @@ class CharPinyinQuizGeneratingWorker(QuizGeneratingWorker):
 
         quiz_result = {
             "quiz_type": QuizType.single_choice.value,
-            "quiz_language_list": [zh_quiz, ar_quiz, en_quiz]
+            "quiz_language_list": [zh_quiz, en_quiz, ar_quiz]
         }
 
         return quiz_result
@@ -305,6 +322,8 @@ class QuizGenerator:
             return title.strip().split("_")[-1]
         if series_name in ["HSK_1_2_3_写字视频"]:
             return title.strip().split("_").split("（")[0]
+        if series_name in ["悟空识字"]:
+            return title.strip().split("_")[-2].strip()
         return ""
         
     async def generate_quiz(self, video_id):
@@ -322,7 +341,8 @@ class QuizGenerator:
             video_info = json.loads(video_info_str)
             
             extracted_word = self.extract_word_from_video_info(video_info)
-            if extracted_word == "":
+            # 检查extracted_word是否包含数字或英文字母
+            if extracted_word == "" or any(char.isdigit() or char.isascii() for char in extracted_word):
                 return quiz_template
             # For debug
             # print (video_info["title"])
@@ -350,9 +370,9 @@ class QuizGenerator:
 
 
 if __name__ == "__main__":
-    pass
-    # from recaller import init_redis_pool, close_redis_pool
-    # asyncio.run(init_redis_pool())
+    # pass
+    from recaller import init_redis_pool, close_redis_pool
+    asyncio.run(init_redis_pool())
 
     # quiz_worker_config = {"hsk_zh_en_ar_path": "../video_process/hsk_dictionary/HSK_zh_en_ar.csv", "hsk_char_path": "../video_process/hsk_dictionary/HSK_char.csv"}
     # word_trans_quiz_worker = WordTranslationQuizGeneratingWorker(quiz_worker_config)
@@ -365,10 +385,10 @@ if __name__ == "__main__":
     # quiz_result = char_filling_quiz_worker.action(quiz_generating_ctx)
     # quiz_result = char_py_quiz_worker.action(quiz_generating_ctx)
 
-    # generator = QuizGenerator()
+    generator = QuizGenerator()
     
     # 创建事件循环并运行异步函数
-    # quiz_result = asyncio.run(generator.generate_quiz("6790d587cc3e1daa477a2a0f"))
+    quiz_result = asyncio.run(generator.generate_quiz("678f6985e19148c899eeb41f"))
     # quiz_result = asyncio.run(generator.generate_quiz("6790d5abcc3e1daa477a2a13"))
-    # print(quiz_result)
-    # asyncio.run(close_redis_pool())
+    print(quiz_result)
+    asyncio.run(close_redis_pool())
