@@ -384,7 +384,7 @@ class QuizGenerator:
         if series_name in ["HSK_1_2_3_写字视频"]:
             return title.strip().split("_")[-1].split("（")[0]
         if series_name in ["悟空识字"]:
-            return title.strip().split("_")[-2].strip()
+            return title.strip().split("_")[-1].strip()
         return ""
         
     async def generate_quiz(self, video_id):
