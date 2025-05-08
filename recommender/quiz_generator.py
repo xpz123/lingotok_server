@@ -22,6 +22,7 @@ class QuizType(Enum):
 class QuizGeneratingCtx:
     def __init__(self):
         self.extracted_word = None
+        self.shengyunmu = None
         self.recent_video_infos = list()
 
 class QuizGeneratingWorker:
@@ -34,6 +35,8 @@ class QuizGeneratingWorker:
             "quiz_language_list": []
         }
         self.word_level_dict, self.word_pos_level_dict, self.level_wordlist_dict, self.level_wordposlist_dict = self.parse_hsk_level(quiz_worker_config.get("hsk_zh_en_ar_path", None))
+        self.shengmu_list = ["b", "p", "m", "f", "d", "t", "n", "l", "g", "k", "h", "j", "q", "x", "zh", "ch", "sh", "r", "z", "c", "s", "y", "w"]
+        self.yunmu_list = ["a", "o", "e", "i", "u", "ü", "ai", "ei", "ui", "ao", "ou", "iu", "ie", "üe", "er", "an", "en", "in", "un", "vn", "ang", "eng", "ing", "ong"]
     
     def parse_hsk_level(self, hsk_csv):
         df = pd.read_csv(hsk_csv)
@@ -94,19 +97,77 @@ class QuizGeneratingWorker:
     def to_dict(self, quiz_res):
         content = dict()
         content["question"] = quiz_res["quiz_language_list"][0]["question"]
-        content["options"] = quiz_res["quiz_language_list"][0]["options"]
-        content["answer"] = quiz_res["quiz_language_list"][0]["answer"]
+        content["options"] = quiz_res["quiz_language_list"][0]["option_list"]
+        content["answer"] = quiz_res["quiz_language_list"][0]["answer_list"][0]
         content["explanation"] = quiz_res["quiz_language_list"][0]["explanation"]
         
         # multi_lingual_quiz = video_processor.translate_zh_quiz(content)
-        content["ar_question"] = quiz_res["quiz_language_list"][1]["question"]
-        content["ar_options"] = quiz_res["quiz_language_list"][1]["options"]
-        content["ar_explanation"] = quiz_res["quiz_language_list"][1]["explanation"]
-        content["en_question"] = quiz_res["quiz_language_list"][2]["question"]
-        content["en_options"] = quiz_res["quiz_language_list"][2]["options"]
-        content["en_explanation"] = quiz_res["quiz_language_list"][2]["explanation"]
+        content["ar_question"] = quiz_res["quiz_language_list"][2]["question"]
+        content["ar_options"] = quiz_res["quiz_language_list"][2]["option_list"]
+        content["ar_explanation"] = quiz_res["quiz_language_list"][2]["explanation"]
+        content["en_question"] = quiz_res["quiz_language_list"][1]["question"]
+        content["en_options"] = quiz_res["quiz_language_list"][1]["option_list"]
+        content["en_explanation"] = quiz_res["quiz_language_list"][1]["explanation"]
 
         return content
+
+class ShengYunMuQuizGeneratingWorker(QuizGeneratingWorker):
+    def __init__(self, quiz_worker_config):
+        super().__init__(quiz_worker_config)
+
+
+    def able_to_generate(self, quiz_generating_ctx):
+        pass
+
+    def generate_shengyunmu_quiz(self, sym=None):
+        if sym is None:
+            is_shengmu = rd.choice([True, False])
+        else:
+            is_shengmu = sym in self.shengmu_list
+
+        options = self.shengmu_list if is_shengmu else self.yunmu_list
+        distracted_options = self.yunmu_list if is_shengmu else self.shengmu_list
+        if sym is None:
+            correct_answer = rd.choice(options)
+        else:
+            correct_answer = sym
+        
+        rd.shuffle(distracted_options)
+        distracted_options = distracted_options  # 选择3个干扰项
+        
+        # 生成问题文本
+        zh_type_text = "声母" if is_shengmu else "韵母"
+        en_type_text = "Initial Consonant" if is_shengmu else "Final Vowel"
+        zh_question = f"以下哪个是{zh_type_text}？"
+        en_question = f"Which of the following is a {en_type_text}?"
+        if is_shengmu:
+            ar_question = "أي مما يلي هو ساكن؟"
+        else:
+            ar_question = "أي مما يلي هو حرف علة؟"
+        
+        # 随机选择答案位置
+        answer_idx = rd.randint(0, 3)
+        
+        # 生成三种语言的测验
+        zh_quiz = self.assemble_single_choice_quiz(Language.zh.value, zh_question, correct_answer, distracted_options, answer_idx)
+        en_quiz = self.assemble_single_choice_quiz(Language.en.value, en_question, correct_answer, distracted_options, answer_idx)
+        ar_quiz = self.assemble_single_choice_quiz(Language.ar.value, ar_question, correct_answer, distracted_options, answer_idx)
+        
+        quiz_result = {
+            "quiz_type": QuizType.single_choice.value,
+            "quiz_language_list": [zh_quiz, en_quiz, ar_quiz]
+        }
+        return quiz_result
+
+    def action(self, quiz_generating_ctx):
+        if quiz_generating_ctx.shengyunmu is None:
+            return self.generate_shengyunmu_quiz()
+        else:
+            is_shengmu = quiz_generating_ctx.shengyunmu in self.shengmu_list
+            is_yunmu = quiz_generating_ctx.shengyunmu in self.yunmu_list
+            if is_shengmu == False and is_yunmu == False:
+                return self.generate_shengyunmu_quiz()
+            return self.generate_shengyunmu_quiz(sym=quiz_generating_ctx.shengyunmu)
 
 class WordTranslationQuizGeneratingWorker(QuizGeneratingWorker):
     def __init__(self, quiz_worker_config):
@@ -321,7 +382,7 @@ class QuizGenerator:
         if series_name in ["单字视频", "HSK_表情包", "HSK 600 20250104", "PNU_1", "PNU_2", "videos", "HSK output_new_2 20250107", "HSK output"]:
             return title.strip().split("_")[-1]
         if series_name in ["HSK_1_2_3_写字视频"]:
-            return title.strip().split("_").split("（")[0]
+            return title.strip().split("_")[-1].split("（")[0]
         if series_name in ["悟空识字"]:
             return title.strip().split("_")[-2].strip()
         return ""
@@ -371,6 +432,7 @@ class QuizGenerator:
 
 if __name__ == "__main__":
     # pass
+
     from recaller import init_redis_pool, close_redis_pool
     asyncio.run(init_redis_pool())
 

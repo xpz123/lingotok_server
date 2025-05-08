@@ -138,9 +138,9 @@ class CustomizedRecaller(Recaller):
     
 class LevelRecaller(Recaller):
     def __init__(self):
-        self.recall_from_series_count = 3
+        self.recall_from_series_count = 5
         self.recall_count = 20
-        self.max_each_series_count = 10
+        self.max_each_series_count = 3
     async def recall(self, recommender_ctx):
         # recall_videos = []
         user_level = recommender_ctx.user_profile_ctx.user_basic_info.level
@@ -162,7 +162,9 @@ class LevelRecaller(Recaller):
         rd.shuffle(recall_series)
         recall_videos = []
         for i in range(min(len(recall_series), self.recall_from_series_count)):
-            recall_videos += await lrange_redis("video_series-{}".format(recall_series[i]), 0, -1)
+            series_videos = await lrange_redis("video_series-{}".format(recall_series[i]), 0, -1)
+            rd.shuffle(series_videos)
+            recall_videos += series_videos[:self.max_each_series_count]
         rd.shuffle(recall_videos)
         return recall_videos[:self.recall_count]
     
