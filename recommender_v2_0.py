@@ -37,8 +37,8 @@ class RecommenderCtx:
 
 class PrerecallStrategy:
     def __init__(self):
-        # 开屏建议视频：山（动画）、汉语（写字）、 名字（写字）、再见（表情）、欢迎（表情）
-        self.newcomer_video_ids = ["67e3d887690991cd5a591347", "67ed0b30d1f8badc42c1da39", "67ed0b103e7f08b27c77fa12", "67a0ff1a3f4ca0bb2aa31126", "67a0ff253f4ca0bb2aa3112a"]
+        # 开屏建议视频：山（动画）、汉语（写字）、 名字（写字）、北京（表情）、棒（自制）、吃（自制）
+        self.newcomer_video_ids = ["67e3d887690991cd5a591347", "67ed0b30d1f8badc42c1da39", "67ed0b103e7f08b27c77fa12", "67fb58163e7f08b27c77fcaa", "681f5ba465197d2c415005b2", "681f5c3f169824b20ef09318"]
         self.newcommer_recall_counts = 20
 
     async def check_user_status(self, user_behavior_info):
@@ -70,17 +70,18 @@ class Ranker:
     def __init__(self):
         self.newcommer_recall_counts = 20
         self.primary_ratio = 1.0
-        self.pop_ratio = 0.2
+        self.pop_ratio = 0.0
         self.random_ratio = 0.0
 
     def newcomer_rank_strategy(self, recommender_ctx):
         # 60% level_interests  40% pop lefted level
-        level_interest_recall_video_ids = recommender_ctx.recall_result_dict["level_interest"]
+        # level_interest_recall_video_ids = recommender_ctx.recall_result_dict["level_interest"]
         level_recall_video_ids = recommender_ctx.recall_result_dict["level"]
-        pop_recall_video_ids = recommender_ctx.recall_result_dict["pop"]
-        recall_video_ids = level_interest_recall_video_ids[:int(0.6*self.newcommer_recall_counts)] + pop_recall_video_ids[:int(0.4*self.newcommer_recall_counts)]
-        level_recall_count = self.newcommer_recall_counts - len(recall_video_ids)
-        recall_video_ids += level_recall_video_ids[:level_recall_count]
+        # pop_recall_video_ids = recommender_ctx.recall_result_dict["pop"]
+        # recall_video_ids = level_interest_recall_video_ids[:int(0.6*self.newcommer_recall_counts)] + pop_recall_video_ids[:int(0.4*self.newcommer_recall_counts)]
+        recall_video_ids = level_recall_video_ids[:self.newcommer_recall_counts]
+        # level_recall_count = self.newcommer_recall_counts - len(recall_video_ids)
+        # recall_video_ids += level_recall_video_ids[:level_recall_count]
         recommender_ctx.rank_result = recall_video_ids
 
     async def rank(self, recommender_ctx):
