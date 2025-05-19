@@ -38,7 +38,9 @@ class RecommenderCtx:
 class PrerecallStrategy:
     def __init__(self):
         # 开屏建议视频：山（动画）、汉语（写字）、 名字（写字）、北京（表情）、棒（自制）、吃（自制）
-        self.newcomer_video_ids = ["67e3d887690991cd5a591347", "67ed0b30d1f8badc42c1da39", "67ed0b103e7f08b27c77fa12", "67fb58163e7f08b27c77fcaa", "681f5ba465197d2c415005b2", "681f5c3f169824b20ef09318"]
+        self.newcomer_video_ids = ["67e3d887690991cd5a591347", "67ed0b30d1f8badc42c1da39", "67ed0b103e7f08b27c77fa12", "67fb58163e7f08b27c77fcaa", "681f5ba465197d2c415005b2", "681f5c3f169824b20ef09318", "682af7dd342fad17dbe26534", "682af7de342fad17dbe26536", "682af7df0a2063a63c07e67e", "682af7e0342fad17dbe26538", "682af7e10a2063a63c07e680", "682af7e20a2063a63c07e682", "682af7e40a2063a63c07e684", "682af7eb342fad17dbe2653a", "682af7ec0a2063a63c07e686", "682af7ed0a2063a63c07e688", "682af7ef342fad17dbe2653c", "682af7f0342fad17dbe2653e", "682af7f10a2063a63c07e68a", "682af7f20a2063a63c07e68c"]
+        
+        rd.shuffle(self.newcomer_video_ids)
         self.newcommer_recall_counts = 20
 
     async def check_user_status(self, user_behavior_info):
