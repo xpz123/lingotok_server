@@ -201,7 +201,7 @@ class RecommenderV2_0:
 
         # Check if the pre-recall strategy is ready to return, only for Open-Screen Recommendation
         if recommender_ctx.is_ok_rtn():
-            return recommender_ctx.recommended_videoids
+            return recommender_ctx.recommended_videoids[:recommender_ctx.recommended_size]
 
         recommender_ctx.recall_result_dict = {}
 
