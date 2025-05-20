@@ -22,20 +22,19 @@ from video_processor import VideoProcessor, milliseconds_to_time_string
 import time
 from aigc import merge_audios
 import random as rd
+from translator import Translator
 
-def trans_word_to_ar(ori_csv_file, ar_csv_file):
+translator = Translator()
+
+def refine_ar_word(ori_csv_file):
+    translator = Translator()
     df = pd.read_csv(ori_csv_file)
-    columns = df.columns.to_list()
-    columns.append("阿语翻译")
-    text_list = list()
     for i in tqdm(range(df.shape[0])):
-        text = df.iloc[i]["单词"]
-        text_list.append(text.split("（")[0])
-    resp_list = translate_text2ar(text_list, "ar")
-    assert len(text_list) == len(resp_list)
-    ar_text_list = [resp["Translation"] for resp in resp_list]
-    df["阿语翻译"] = ar_text_list
-    df.to_csv(ar_csv_file, index=False)
+        zh_word = df.iloc[i]["单词"]
+        ar_word = translator.translate_zhword(zh_word)["ar"]
+        if ar_word != "":
+            df.iloc[i]["阿语翻译"] = ar_word
+    df.to_csv(ori_csv_file, index=False)
 
 def add_pinyin(ori_csv_file, py_csv_file):
     # import pdb;pdb.set_trace()
@@ -70,12 +69,12 @@ def generate_subtitle(zh_text_list, srt_prefix, root_dir, audio_dur_dict, audio_
     ar_text_list = translate_text2ar(zh_text_list, "ar")
     assert len(ar_text_list) == len(zh_text_list)
 
-    en_text_list = translate_text2ar(zh_text_list, "en")
-    assert len(en_text_list) == len(zh_text_list)
+    # en_text_list = translate_text2ar(zh_text_list, "en")
+    # assert len(en_text_list) == len(zh_text_list)
 
     fw_zh = open(zh_srt, "w")
     fw_ar = open(ar_srt, "w")
-    fw_en = open(en_srt, "w")
+    # fw_en = open(en_srt, "w")
     
     start_time = 0
     for i in range(len(zh_text_list)):
@@ -89,15 +88,24 @@ def generate_subtitle(zh_text_list, srt_prefix, root_dir, audio_dur_dict, audio_
         zh_srt_content = f"{i}\n{start_time_str} --> {end_time_str}\n{zh_text_list[i]}\n\n"
         fw_zh.write(zh_srt_content)
 
-        ar_srt_content = f"{i}\n{start_time_str} --> {end_time_str}\n{ar_text_list[i]['Translation']}\n\n"
+        ar_word = translator.translate_zhword(zh_text_list[i])["ar"]
+        if ar_word == "":
+            ar_word = ar_text_list[i]["Translation"]
+
+        ar_srt_content = f"{i}\n{start_time_str} --> {end_time_str}\n{ar_word}\n\n"
         fw_ar.write(ar_srt_content)
 
-        en_srt_content = f"{i}\n{start_time_str} --> {end_time_str}\n{en_text_list[i]['Translation']}\n\n"
-        fw_en.write(en_srt_content)
+        # en_srt_content = f"{i}\n{start_time_str} --> {end_time_str}\n{en_text_list[i]['Translation']}\n\n"
+        # fw_en.write(en_srt_content)
     fw_zh.close()
     fw_ar.close()
-    fw_en.close()
-
+    # fw_en.close()
+    zh_word = zh_text_list[0]
+    en_word = translator.translate_zhword(zh_word)["en"]
+    if en_word != "":
+        translator.translate_word_sent_zhsrt2ensrt_with_keyword(zh_srt, en_srt, keyword=(zh_word, en_word))
+    else:
+        translator.translate_zhsrt2ensrt_with_context(zh_srt, en_srt)
     video_processor.convert_zhsrt_to_pinyinsrt(zh_srt, pinyin_srt)
     return res
 
@@ -155,7 +163,8 @@ def modify_videos(video_path, word, pinyin, ar_word, sentence, merged_audio, aud
         
         arbic_h = float(video.size[1] * 0.2 + chinese_text_with_bg.h) / float(video.size[1])
         arbic_text_with_bg = arbic_text_with_bg.set_position(("center", arbic_h), relative=True).set_duration(video.duration)
-        video_with_text = CompositeVideoClip([video, chinese_text_with_bg, arbic_text_with_bg])
+        # video_with_text = CompositeVideoClip([video, chinese_text_with_bg, arbic_text_with_bg])
+        video_with_text = CompositeVideoClip([video, chinese_text_with_bg])
         audio_clip = AudioFileClip(merged_audio)
 
         final_audio = CompositeAudioClip([audio_clip, video_audio])
@@ -224,11 +233,9 @@ if __name__ == "__main__":
     
     video_processor = VideoProcessor()
 
-    # root_dir = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/初级汉语/真-初级口语1+2/初级口语1/chap12"
-    # root_dir = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/初级汉语/真-初级口语1+2/初级口语1/chap14"
-    root_dir = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/初级汉语/真-初级口语1+2/初级口语1/chap15"
-    df = pd.read_excel(os.path.join(root_dir, "words_chap.xls"))
-    create_tag = "PNU_1_15"
+    root_dir = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/初级汉语/词汇练习"
+    
+    create_tag = "风景单词卡"
 
     audio_dir = os.path.join(root_dir, "audios")
     if not os.path.exists(audio_dir):
@@ -241,20 +248,23 @@ if __name__ == "__main__":
     word_py_csv = os.path.join(root_dir, "words_refined_with_sent_pinyin.csv")
     word_py_ar_csv = os.path.join(root_dir, "words_refined_with_sent_pinyin_ar.csv")
     video_csv = os.path.join(root_dir, "video.csv")
-    srt_csv = os.path.join(root_dir, "srt.csv")
+    srt_csv = os.path.join(root_dir, "words_refined_with_sent_pinyin_ar_video_srt_clean.csv")
     tag_csv = os.path.join(root_dir, "tag.csv")
     vod_csv = os.path.join(root_dir, "vod.csv")
     create_csv = os.path.join(root_dir, "create.csv")
 
     skip_quiz = True
-    skip_video = False
-    skip_srt = False
-    skip_tag = False
-    skip_vod = False
+    skip_add_pinyin = True
+    skip_trans_word_to_ar = True
+    skip_video = True
+    skip_srt = True
+    skip_tag = True
+    skip_vod = True
     skip_create = False
     
 
     if not skip_quiz:
+        df = pd.read_excel(os.path.join(root_dir, "words_chap.xls"))
         columns = df.columns.to_list()
         columns.append("例句")
         columns.append("问题")
@@ -299,13 +309,19 @@ if __name__ == "__main__":
         df_new = pd.DataFrame(df_list, columns=columns)
         df_new.to_csv(quiz_csv, index=False)
 
+    if not skip_add_pinyin:
+        add_pinyin(quiz_csv, word_py_csv)
+    
+    # if not skip_trans_word_to_ar:
+    #     trans_word_to_ar(word_py_csv, word_py_ar_csv)
+
     if not skip_video:
         fj_video_dir = "/Users/tal/work/lingtok_server/video_process/hw/videos/风景视频"
         video_path_list = [os.path.join(fj_video_dir, item) for item in os.listdir(fj_video_dir)]
         rd.shuffle(video_path_list)
 
-        add_pinyin(quiz_csv, word_py_csv)
-        trans_word_to_ar(word_py_csv, word_py_ar_csv)
+        # add_pinyin(quiz_csv, word_py_csv)
+        # trans_word_to_ar(word_py_csv, word_py_ar_csv)
 
         df_new = pd.read_csv(word_py_ar_csv)
         # df_new = pd.read_csv("沙特女子Demo/初级汉语/词汇练习/words_refined_with_sent_pinyin_ar_video.csv")
@@ -313,6 +329,7 @@ if __name__ == "__main__":
         columns.append("FileName")
         columns.append("with_sent")
         df_list = df_new.values.tolist()
+        
 
         for i in tqdm(range(df_new.shape[0])):
             try:
@@ -348,6 +365,8 @@ if __name__ == "__main__":
         
         df_video = pd.DataFrame(df_list, columns=columns)
         df_video.to_csv(video_csv, index=False)
+    
+    import pdb;pdb.set_trace()
 
     if not skip_srt:
         df_video = pd.read_csv(video_csv)
@@ -378,11 +397,6 @@ if __name__ == "__main__":
         df_srt.to_csv(srt_csv, index=False)
 
 
-
-    # df_srt = pd.read_csv("沙特女子Demo/初级汉语/词汇练习/words_refined_with_sent_pinyin_ar_video_srt.csv")
-    # df_srt.dropna(subset=["zh_srt"], axis=0, how="any", inplace=True)
-    # df_srt.to_csv("沙特女子Demo/初级汉语/词汇练习/words_refined_with_sent_pinyin_ar_video_srt_clean.csv", index=False)
-
     if not skip_tag:
         from content_tagger import update_video_info_csv_level
         # pnu1_tag_csv = "沙特女子Demo/初级汉语/词汇练习/pnu1_srt_clean_tag.csv"
@@ -404,7 +418,14 @@ if __name__ == "__main__":
         # update_videoinfo_recommender_withcsv(pnu1_create_csv)
 
         # pnu2_create_csv = "沙特女子Demo/初级汉语/词汇练习/pnu2_srt_clean_tag_vod_create.csv"
-        create_with_csv(quiz_jsonl, vod_csv, create_csv, customize=create_tag)
+        create_with_csv(quiz_jsonl, vod_csv, create_csv, customize=create_tag, series_name="初级口语风景单词卡")
+
+        import os
+        import sys
+        sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from recommender.video_updater import VideoUpdater
+        video_updater = VideoUpdater()
+        video_updater.update_series_tag_once("初级口语风景单词卡", level="初学", tag_list=["科学教育"])
         # update_videoinfo_recommender_withcsv(pnu2_create_csv)
 
 

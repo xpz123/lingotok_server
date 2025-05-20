@@ -208,10 +208,13 @@ if __name__ == '__main__':
     # root_dir = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/初级汉语/真-初级口语1+2/初级口语1/chap12"
     # root_dir = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/初级汉语/真-初级口语1+2/初级口语2/chap2"
     # root_dir = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/初级汉语/真-初级口语1+2/初级口语1/chap13"
-    root_dir = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/初级汉语/真-初级口语1+2/初级口语1/chap14"
+    # root_dir = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/初级汉语/真-初级口语1+2/初级口语1/chap14"
+    root_dir = "/Users/tal/work/lingtok_server/video_process/沙特女子Demo/初级汉语/真-初级口语1+2/初级口语1/chap15"
+
     # cus_tag = "PNU_1_13"
-    # cus_tag = "PNU_2_3"
-    cus_tag = "PNU_1_14"
+    # cus_tag = "PNU_2_2"
+    # cus_tag = "PNU_1_14"
+    cus_tag = "PNU_1_15"
     if not os.path.exists(root_dir):
         os.makedirs(root_dir)
     # all_sent_list = split_pnu_csv("沙特女子Demo/初级汉语/初级汉语课本3/{}.csv".format(prefix))
@@ -240,9 +243,9 @@ if __name__ == '__main__':
     image_dir = os.path.join(root_dir, "images")
 
     skip_recap = True
-    skip_video = False
-    skip_quiz = False
-    skip_tag = False
+    skip_video = True
+    skip_quiz = True
+    skip_tag = True
     skip_vod = False
     skip_create = False
 
@@ -255,7 +258,7 @@ if __name__ == '__main__':
         elif cus_tag_prefix == "2":
             for vid in tqdm(pnu2_quiz_vid):
                 update_video_info(vid, customize=cus_tag)
-    # import pdb; pdb.set_trace()
+    import pdb; pdb.set_trace()
             
     
     srt_csv = os.path.join(root_dir, "srt.csv")

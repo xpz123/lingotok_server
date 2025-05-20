@@ -532,15 +532,49 @@ def prep_hw_data():
     # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/科技/亿点点不一样")
     # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/沙特女子Demo/沙特教育局 demo_视频素材 edited")
     # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/沙特女子Demo/KAU-lecture/0126/ori_videos")
-    video_dir_list.append("/Users/tal/work/lingtok_server/video_process/沙特女子Demo/低龄视频demo-0208")
+    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/沙特女子Demo/低龄视频demo-0208")
+    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/已修改/汉字基础/1.从象形字（如日、月）入手，理解汉字构造逻辑，降低记忆难度")
+    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/视频内容库查漏补缺-已修改-428/汉字基础/2.常用偏旁部首及500-1000个高频汉字")
+    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/已修改/汉字基础/3.笔画讲解")
+    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/已修改/拼音与声调/2. 声母歌")
+    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/已修改/拼音与声调/3. 拼音规则（高级拼音）")
+    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/已修改/拼音与声调/4. 拼音视频带声调")
+    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/已修改/拼音与声调/5. 声母练习")
+    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/视频内容库查漏补缺-已修改-428/拼音与声调/6. 绕口令")
+    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/已修改/拼音与声调/7. 声母韵母发音视频")
+    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/已修改/拼音与声调/8. 拼音歌")
+    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/Maggunur带你学国语")
+    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/字有道理")
+    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/6.绕口令")
+    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/HSK_video/hsk_video/600words_mp4")
+    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/汉字2")
+    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/视频内容库查漏补缺-已修改-428/汉字基础/1.从象形字（如日、月）入手，理解汉字构造逻辑，降低记忆难度")
+    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/汉字2_1")
+    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/短剧/0112-8290-典藏华夏-50-01-君-富士山下")
+    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/短剧/01012-8290-典藏华夏-39-02-bakm")
+    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/短剧/01013-9667-傲骨龙隐-53-02-bakm")
+    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/hw/videos/tmp")
+    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/大家共创的内容/Mengwei-购物与饮食")
+    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/大家共创的内容/Ruijun-天气、职业")
+    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/大家共创的内容/Siming-数字与数量、时间与日期")
+    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/大家共创的内容/Tina-方位与位置、颜色")
+    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/大家共创的内容/Tracy-声母、韵母")
+    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/大家共创的内容/Zirui-交通出行、身体健康")
+    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/自制视频/笔画")
+    video_dir_list.append("/Users/tal/work/lingtok_server/video_process/自制视频/压缩后的文件 1")
+
+    
 
 
     for video_dir in video_dir_list:
         video_list = list()
         cover_dict = dict()
         for root, dirs, files in os.walk(video_dir):
-            for f in files:
-                if f.find(".mp4") != -1:
+            for f in tqdm(files):
+                if f.find(".mov") != -1:
+                    os.system("/opt/homebrew/Cellar/ffmpeg/7.1_4/bin/ffmpeg -y -loglevel error -i {} {}".format(os.path.join(root, f), os.path.join(root, f.replace(".mov", ".mp4"))))
+                    video_list.append(os.path.join(root, f.replace(".mov", ".mp4")))
+                elif f.find(".mp4") != -1:
                     video_list.append(os.path.join(root, f))
                     cover_path = os.path.join(root, f.replace(".mp4", ".jpg"))
                     if not os.path.exists(cover_path):
@@ -556,22 +590,24 @@ def prep_hw_data():
         quiz_zh_metainfo_file = os.path.join(video_dir, "video_metainfo_zh.jsonl")
         quiz_metainfo_file = os.path.join(video_dir, "video_metainfo.jsonl")
 
-        cover_csv_file = os.path.join(video_dir, "video_info_cover.csv")
+        quiz_csv_file = os.path.join(video_dir, "video_info_quiz.csv")
+        # cover_csv_file = os.path.join(video_dir, "video_info_cover.csv")
         # compressed_csv_file = os.path.join(video_dir, "video_info_compressed.csv")
         vod_csv_file = os.path.join(video_dir, "video_info_vod_hw.csv")
         tag_csv_file = os.path.join(video_dir, "video_info_tag.csv")
-        cus_tag = "SAEKID"
+        
+        cus_tag = "PNU888"
+        series_name = ""
         
         # For debug
-        skip_srt = True
+        skip_srt = False
         skip_quiz = True
-        skip_add_cover = True
         skip_tag_video = True
         # skip_compress = True
         skip_upload = False
 
         skip_create = False
-        skip_update_recommender = True
+        skip_series_name = False
 
         video_processor = VideoProcessor()
 
@@ -604,27 +640,16 @@ def prep_hw_data():
                 df_list.append(item)
             df_srt = pd.DataFrame(df_list, columns=columns)
             df_srt.to_csv(srt_csv_file, index=False)
+        import pdb; pdb.set_trace()
         
         if not skip_quiz:
+            
             generate_quiz_zh(srt_dir, quiz_zh_metainfo_file)
             translate_quiz_metainfo(quiz_zh_metainfo_file, quiz_metainfo_file)
         
-        if not skip_add_cover:
-            df_srt = pd.read_csv(srt_csv_file)
-            columns = df_srt.columns.tolist()
-            columns.append("cover_path")
-            df_srt_list = df_srt.values.tolist()
-            for i in range(len(df_srt_list)):
-                video_path = df_srt.iloc[i]["FileName"]
-                df_srt_list[i].append(cover_dict[video_path])
-            df_cover = pd.DataFrame(df_srt_list, columns=columns)
-            df_cover.to_csv(cover_csv_file, index=False)
-        
-        # if not skip_compress:
-        #     compress_videos(cover_csv_file, compressed_csv_file)
         
         if not skip_tag_video:
-            update_video_info_csv_level(cover_csv_file, tag_csv_file)
+            update_video_info_csv_level(quiz_csv_file, tag_csv_file)
 
         if not skip_upload:
             if os.path.exists(vod_csv_file):
@@ -645,10 +670,12 @@ def prep_hw_data():
             # upload_huoshan_withcsv(tag_csv_file, vod_csv_file)
 
         if not skip_create:
-            create_with_csv(quiz_metainfo_file, vod_csv_file, out_csv_file, customize=cus_tag)
-        
-        if not skip_update_recommender:
-            update_videoinfo_recommender_withcsv(out_csv_file)
+            create_with_csv(quiz_metainfo_file, vod_csv_file, out_csv_file, customize=cus_tag, series_name=series_name)
+
+        if not skip_series_name:
+            from recommender.video_updater import VideoUpdater
+            video_updater = VideoUpdater()
+            video_updater.update_series_tag_once(series_name, level="初学", tag_list=["科学教育"])
     
         # merge_csv_huoshan("/Users/tal/work/lingtok_server/video_info_hw_created.csv", out_csv_file)
 

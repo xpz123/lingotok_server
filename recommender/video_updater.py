@@ -384,12 +384,35 @@ class VideoUpdater:
             assert level in ["初学", "入门", "难", "中等"]
             level_prefix = "video_series_level-"
             key = "{}{}".format(level_prefix, level)
-            pipe.lpush(key, series_name)
+            series_name_set = set(self.redis_client.lrange(key, 0, -1))
+            if not series_name in series_name_set:
+                pipe.lpush(key, series_name)
         if tag_list:
             for tag in tag_list:
                 key = "video_series_interest_level-{}_{}".format(tag, level)
-                pipe.lpush(key, series_name)
+                series_name_set = set(self.redis_client.lrange(key, 0, -1))
+                if not series_name in series_name_set:
+                    pipe.lpush(key, series_name)
         pipe.execute()
+    
+    def unique_redis_key(self, key):
+        series_name_list = self.redis_client.lrange(key, 0, -1)
+        decoded_series_list = [item.decode('utf-8') for item in series_name_list]
+        # 使用set去重
+        unique_series_list = list(set(decoded_series_list))
+        
+        # 如果有重复值，更新Redis
+        if len(unique_series_list) < len(decoded_series_list):
+            pipe = self.redis_client.pipeline()
+            # 删除原有的key
+            pipe.delete(key)
+            # 添加去重后的值
+            for series_name in unique_series_list:
+                pipe.rpush(key, series_name)
+            pipe.execute()
+        
+        return unique_series_list
+
 
 if __name__ == "__main__":
     video_updater = VideoUpdater()
@@ -401,4 +424,8 @@ if __name__ == "__main__":
     # video_updater.calc_video_popularity(out_csv="video_popularity_20250306.csv")
     # video_updater.update_redis_series_tag_offline("/Users/tal/work/lingtok_server/recommender/series_names_20250301_labeled.csv")
     # video_updater.fetch_video_infos(jsonl_file="video_infos_20250322.jsonl")
-    video_updater.update_video_taglist(jsonl_file="video_infos_20250322.jsonl", series_csv="series_names_20250301_labeled.csv")
+    # video_updater.update_video_taglist(jsonl_file="video_infos_20250322.jsonl", series_csv="series_names_20250301_labeled.csv")
+    # video_updater.update_series_tag_once("PNU_2", level="入门", tag_list=["科学教育"])
+    video_updater.update_series_tag_once("被偷走爱的那十年", level="难", tag_list=["娱乐"])
+    video_updater.update_series_tag_once("我被套路撞了N下腰", level="难", tag_list=["娱乐"])
+    # video_updater.unique_redis_key("video_series_level-初学")

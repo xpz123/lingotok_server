@@ -13,15 +13,39 @@ from tqdm import tqdm
 import jieba
 from zhon.hanzi import punctuation
 import string
-from llm_util import call_doubao_pro_128k, call_gpt4o, call_doubao_pro_32k
+from llm_util import call_doubao_pro_128k, call_gpt4o, call_doubao_pro_32k, call_doubao_vl_1_5
 import random as rd
 import pandas as pd
 from pypinyin import pinyin
 import cv2
 import math
+import numpy as np
 os.environ["IMAGEIO_FFMPEG_EXE"] = "/opt/homebrew/Cellar/ffmpeg/7.1_4/bin/ffmpeg"
-from moviepy.editor import VideoFileClip
+from moviepy.editor import VideoFileClip, AudioFileClip, TextClip, CompositeVideoClip, ColorClip, concatenate_videoclips, CompositeAudioClip, ImageClip, VideoClip
+from moviepy.config import change_settings
+change_settings({"IMAGEMAGICK_BINARY": "/opt/homebrew/Cellar/imagemagick/7.1.1-43/bin/magick"})
 from copy import deepcopy
+from pydub import AudioSegment
+
+
+def adujust_videodir_volume(ori_videodir, out_videodir, target_db=-30, threshold_db=5):
+	video_processor = VideoProcessor()
+	for video_file in os.listdir(ori_videodir):
+		if video_file.endswith("_modified.mp4"):
+			video_processor.volume_adjust(os.path.join(ori_videodir, video_file), os.path.join(out_videodir, video_file), target_db, threshold_db)
+
+
+def merge_audios(audio_list, output_audio, sil_dur=300):
+    audio_dur_dict = dict()
+    audio = AudioSegment.empty()
+    silence = AudioSegment.silent(duration=sil_dur)
+    for audio_path in audio_list:
+        audio_dur_dict[audio_path.split("/")[-1].replace(".wav", "")] = AudioSegment.from_file(audio_path).duration_seconds + float(sil_dur) / float(1000)
+        audio += AudioSegment.from_file(audio_path) + silence
+    audio.export(output_audio, format="wav")
+    print (audio_dur_dict)
+    return audio_dur_dict
+
 
 def get_video_resolution(video_file):
 	cap = cv2.VideoCapture(video_file)
@@ -754,7 +778,64 @@ class VideoProcessor:
 			os.system(cmd)
 			return True
 		return  False
+	
+	def volume_adjust_with_videoclip(self, video_clip, target_db=-30, threshold_db=5):
+		try:
+			audio = video_clip.audio
+				
+			volumes = []
+			for i in range(int(audio.duration)):
+				audio_array = audio.to_soundarray(i)
+				rms = np.sqrt(np.mean(audio_array**2))
+				current_db = 20 * np.log10(rms) if rms > 0 else -np.inf
+				if current_db != -np.inf:
+					volumes.append(current_db)
+			mean_db = np.mean(volumes)
 
+			
+			# 如果当前音量在目标范围内,无需调整
+			if abs(mean_db - target_db) <= threshold_db:
+				return video_clip
+				
+			# 计算需要的音量调整比例
+			volume_factor = math.pow(10, (target_db - mean_db)/20)
+			
+			# 调整音频音量
+			video_clip = video_clip.volumex(volume_factor)
+		except Exception as e:
+			print (str(e))
+			return None
+		return video_clip
+	
+	def volume_adjust(self, video_file, out_file, target_db=-30, threshold_db=5):
+		"""调整视频音量到合适范围
+		
+		Args:
+			video_file: 输入视频文件路径
+			target_db: 目标音量大小(dB),默认-20dB
+			threshold_db: 允许的音量波动范围,默认±5dB
+			
+		Returns:
+			bool: 是否进行了音量调整
+		"""
+		try:
+			# 加载视频
+			video = VideoFileClip(video_file)
+			
+			# 提取音频
+			video = self.volume_adjust_with_videoclip(video, target_db, threshold_db)
+			if video is None:
+				print ("音量调整失败")
+				return False
+			
+			video.write_videofile(out_file)
+			
+			return True
+			
+		except Exception as e:
+			print(f"音量调整失败: {str(e)}")
+			return False
+	
 	def chunk_video(self, video_file, zh_srt, chunk_dir, chunk_dur=60, discard_dur=5):
 		# 按照chunk和字幕对长视频进行切分, 默认chunk时长为1 分钟
 		zh_subtitles = pysrt.open(zh_srt)
@@ -803,13 +884,274 @@ class VideoProcessor:
 			res.append({"video_file": chunk_file, "zh_srt": zh_chunk_srt, "en_srt": en_chunk_srt, "ar_srt": ar_chunk_srt, "py_srt": py_chunk_srt})
 		return res
 			
+	def extract_frames_from_video(self, video_file, out_frame_dir, extract_word=False, frame_interval=100):
+		prefix = out_frame_dir.split("/")[-1].split(".")[0]
+		video = cv2.VideoCapture(video_file)
+		if not video.isOpened():
+			print("无法打开视频文件")
+			return None
+			
+		frame_timestamps = []
+		frame_count = 0
 		
+		while True:
+			ret, frame = video.read()
+			if not ret:
+				break
+				
+			# 获取当前帧的时间戳（以秒为单位）
+			timestamp = video.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
+			if timestamp == 0.0:
+				continue
+
+
+			if timestamp > 10.0:
+				break
+			
+			# 检测是否为关键帧
+			is_keyframe = video.get(cv2.CAP_PROP_POS_FRAMES) == 1 or \
+						 video.get(cv2.CAP_PROP_POS_AVI_RATIO) == 0 or \
+						 frame_count % frame_interval == 0  # 每30帧保存一次
+			
+			if is_keyframe:
+				# 保存帧到文件
+				frame_path = os.path.join(out_frame_dir, f"{prefix}_frame_{frame_count:04d}.jpg")
+				cv2.imwrite(frame_path, frame)
+				if not extract_word:
+					frame_timestamps.append({
+						"frame_path": frame_path,
+						"timestamp": timestamp,
+						"word": ""
+					})
+				else:
+					# prompt = "你是一个中文老师，你想要向同学们介绍 人 车 公交车 出租车 晴天 太阳 等词语。分析一下这个图片，你可以通过这个视频介绍什么简单的汉字或词语？ ##请注意，只需要返回图片中最有代表性的一个词，并且只返回这个词或字，不要输出其他内容。"
+					prompt = "你是一个中文老师，你想要向同学们介绍中文词语。分析一下这个图片，你可以通过这个视频介绍什么中文词语？ ##请注意，只需要返回图片中最有代表性的一个词，并且只返回这个词或字，不要输出其他内容。"
+					word = call_doubao_vl_1_5(prompt, frame_path)
+					frame_timestamps.append({
+						"frame_path": frame_path,
+						"timestamp": timestamp,
+						"word": word
+					})
+			
+			frame_count += 1
+			
+		video.release()
+		return frame_timestamps
+	
+	def add_process_bar_to_videoclip(self, video_clip, start_time, duration):
+		def make_progress_bar(t):
+			# 计算当前进度百分比
+			progress = t / duration
+			# 创建一个RGB背景的图像(3通道)而不是RGBA
+			bar = np.zeros((bar_height, w, 3), dtype=np.uint8)
+			# 进度条长度
+			bar_length = int(w * progress)
+			# 设置进度条颜色（蓝色，不带透明度）
+			bar[:, :bar_length] = [30, 144, 255]  # RGB
+			return bar
+		w, h = video_clip.size
+		bar_height = int(h * 0.08)
+		bar_y_pos = int (h - bar_height - h * 0.03)
+		txt_y_pos = int(bar_y_pos + bar_height*0.2)
+		fontsize = int(36 * bar_height / 76)
+		progress_bar_clip = VideoClip(make_progress_bar, duration=duration).set_position(("left", bar_y_pos)).set_start(start_time)
+		text = "Word unlocking ⊙ 。⊙！！"
+		text_clip = (TextClip(text, font='Songti-SC-Black', fontsize=fontsize, color='white')
+             .set_position(("center", txt_y_pos)).set_start(start_time).set_duration(duration))
+		final_video_clip = CompositeVideoClip([video_clip, progress_bar_clip, text_clip])
+
+		return final_video_clip
+
+	def add_zhword_to_videoclip(self, video_clip, word, start_time=-1, duration=-1):
+		# 如果没有指定时间区间，则使用整个视频时长
+		if start_time == -1 or duration == -1:
+			start_time = 0
+			duration = video_clip.duration
+		
+		# 获取拼音
+		py_list = pinyin(word)
+		py_str = ""
+		for py in py_list:
+			py_str += py[0] + " "
+		py_str = py_str.strip()
+		
+		# 创建文字层
+		txt_clip_chinese = TextClip("{}\n{}".format(py_str, word), 
+								   fontsize=60, 
+								   color='black', 
+								   font='Songti-SC-Black')
+		# 创建背景层
+		chinese_bg_color = ColorClip(size=(txt_clip_chinese.w, txt_clip_chinese.h), 
+									color=(255, 255, 255), 
+									duration=duration)
+		chinese_bg_color = chinese_bg_color.set_opacity(0.7)
+		
+		chinese_text_with_bg = CompositeVideoClip([chinese_bg_color, txt_clip_chinese])
+
+		chinese_text_with_bg = chinese_text_with_bg.set_position(("center", 0.2), relative=True) \
+												  .set_start(start_time) \
+												  .set_duration(duration)
+
+		final_clip = CompositeVideoClip([video_clip, chinese_text_with_bg])
+		
+		return final_clip
+	
+	def add_audio_to_videoclip(self, video_clip, audio_file, start_time, duration):
+		
+		# 将视频分成三段：start_time之前、暂停期间、之后
+		if start_time > 0:
+			video_before = video_clip.subclip(0, start_time)
+		else:
+			video_before = None
+		
+		new_audio = AudioFileClip(audio_file).subclip(0, duration)
+		# 暂停期间使用最后一帧创建静止画面
+		pause_frame = video_clip.get_frame(start_time)
+		pause_clip = ImageClip(pause_frame).set_duration(duration).set_audio(new_audio)
+
+		
+		video_after = video_clip.subclip(start_time, video_clip.duration)
+
+		final_video = concatenate_videoclips([video_before, pause_clip, video_after])
+		
+		# 返回带有新音频的视频片段
+		return final_video
+		
+	def add_audio_to_videoclip_v1(self, video_clip, audio_file, start_time, duration):
+		# 获取原始音频
+		original_audio = video_clip.audio
+		
+		# 创建两段音频：start_time之前和之后
+		if start_time > 0:
+			audio_before = original_audio.subclip(0, start_time)
+		else:
+			audio_before = None
+			
+		audio_during = original_audio.subclip(start_time, start_time + duration).volumex(0.2)
+		
+		if start_time + duration < video_clip.duration:
+			audio_after = original_audio.subclip(start_time + duration, video_clip.duration)
+		else:
+			audio_after = None
+		
+		# 加载新音频文件
+		new_audio = AudioFileClip(audio_file).subclip(0, duration)
+		
+		# 合并音频片段
+		audio_clips = []
+		if audio_before is not None:
+			audio_clips.append(audio_before)
+		audio_clips.append(new_audio.set_start(start_time))
+		audio_clips.append(audio_during.set_start(start_time))
+		if audio_after is not None:
+			audio_clips.append(audio_after.set_start(start_time + duration))
+		# audio_clips.extend([new_audio.set_start(start_time)])
+		# if audio_after is not None:
+		# 	audio_after.set_start(start_time + duration)
+		# 	audio_clips.append(audio_after)
+		
+		# 创建合成音频
+		final_audio = CompositeAudioClip(audio_clips)
+		
+		# 返回带有新音频的视频片段
+		return video_clip.set_audio(final_audio)
+
 
 if __name__ == "__main__":
 	video_processor = VideoProcessor()
-	test_video = "testdir/test.mp4"
-	zh_srt = "testdir/v0232eg10064ct6medaljhtabprl86pg_Chinese.srt"
-	video_processor.chunk_video(test_video, zh_srt, "testdir/chunk_dir")
+	# video_path = "/Users/tal/work/lingtok_server/video_process/自制视频/视频加文字/小红书/“踏碎千万片相似的雪花，凝望彼此眼中从未消融的永夜”.mp4"
+	# video_path = "/Users/tal/work/lingtok_server/video_process/自制视频/视频加文字/小红书/“当我终于实现穿着婚纱在海边骑马的梦想”.mp4"
+	# video_path = "/Users/tal/work/lingtok_server/video_process/自制视频/视频加文字/小红书/“旋风六连踢”！一套连招引全场欢呼.mp4"
+	# video_path = "/Users/tal/work/lingtok_server/video_process/自制视频/视频加文字/小红书/“有没有一种可能”.mp4"
+	# video_path = "/Users/tal/work/lingtok_server/video_process/自制视频/视频加文字/小红书/🇷🇺战斗民族不愧是战斗民族.mp4"
+	# video_path = "/Users/tal/work/lingtok_server/video_process/自制视频/视频加文字/抖音trending视频/视频1/1-💗💕🌸🌺🌷#flowers #explore #fypage #اكسبلور #fyp 7502922161867296007.mp4"
+	# video_path = "/Users/tal/work/lingtok_server/video_process/自制视频/视频加文字/抖音trending视频/视频1/2-مفاجئة برشلونة ل ريال مدريد بكرا بالكلاسيكو 🤪🔥 #7502886901590838536.mp4"
+	# video_path = "/Users/tal/work/lingtok_server/video_process/自制视频/视频加文字/抖音trending视频/视频1/3-Some love stories.. Never ends 💙 #Alhilal ｜ #اله7502863892129926407.mp4"
+	# video_path = "/Users/tal/work/lingtok_server/video_process/自制视频/视频加文字/抖音trending视频/视频1/4-#فورد_تورس_2023 #اللهم_صل_وسلم_على_نبينا_محمد #م7502742660269100306.mp4"
+
+	# frame_dir = "自制视频/视频加文字/小红书/frames"
+	# root_dir = "/Users/tal/work/lingtok_server/video_process/自制视频/视频加文字/小红书"
+	root_dir = "/Users/tal/work/lingtok_server/video_process/自制视频/视频加文字/抖音trending视频/视频2"
+	video_dir = os.path.join(root_dir, "ori_videos")
+	frame_dir = os.path.join(root_dir, "frames")
+	if not os.path.exists(frame_dir):
+		os.makedirs(frame_dir)
+	audio_dir = os.path.join(root_dir, "audios")
+	if not os.path.exists(audio_dir):
+		os.makedirs(audio_dir)
+	out_dir = os.path.join(root_dir, "outputs")
+	if not os.path.exists(out_dir):
+		os.makedirs(out_dir)
+	words_dir = os.path.join(root_dir, "words")
+	if not os.path.exists(words_dir):
+		os.makedirs(words_dir)
+	for video_path in tqdm(os.listdir(video_dir)):
+		if not video_path.endswith(".mp4"):
+			continue
+		try:
+			prefix = video_path.split("/")[-1].split(".")[0]
+			word_path = os.path.join(words_dir, "{}.json".format(prefix))
+			if os.path.exists(word_path):
+				res = json.loads(open(word_path, "r").readline())
+			else:
+				res = video_processor.extract_frames_from_video(os.path.join(video_dir, video_path), frame_dir, extract_word=True, frame_interval=60)
+				with open(word_path, "w") as f:
+					f.write(json.dumps(res))
+			print (res)
+			
+			word_count = {}
+			for item in res:
+				if item["timestamp"] < 2.0:
+					continue
+				word = item["word"]
+				if word not in word_count:
+					word_count[word] = 1
+				else:
+					word_count[word] += 1
+			
+			max_count = -1
+			max_word = ""
+			for word, count in word_count.items():
+				if count > max_count:
+					max_count = count
+					max_word = word
+			
+			for item in res:
+				if item["timestamp"] == 0.0:
+					continue
+				if item["word"] == max_word:
+					start_time = item["timestamp"]
+					word = item["word"]
+					
+			video_clip = VideoFileClip(os.path.join(video_dir, video_path))
+			from huoshan_tts_util import generate_wav
+			# generate_wav("伞", "/Users/tal/work/lingtok_server/video_process/自制视频/视频加文字/伞_1.wav", voice_type="BV001_streaming", speed=0.3)
+			generate_wav(word, os.path.join(audio_dir, "{}.wav".format(word)), voice_type="BV001_streaming", speed=0.3)
+
+			repeat_num = 5
+			audio_list= [os.path.join(audio_dir, "{}.wav".format(word))] * repeat_num 
+			
+			audio_dur_dict = merge_audios(audio_list, os.path.join(audio_dir, "{}_merged.wav".format(word)), sil_dur=500)
+			audio_dur = 0
+			for key in audio_dur_dict.keys():
+				audio_dur += audio_dur_dict[key]
+			
+			audio_dur = audio_dur * repeat_num
+			
+			video_clip = video_processor.add_audio_to_videoclip(video_clip, os.path.join(audio_dir, "{}_merged.wav".format(word)), start_time, audio_dur)
+			video_clip = video_processor.add_zhword_to_videoclip(video_clip, word, start_time, audio_dur)
+			video_clip = video_processor.add_process_bar_to_videoclip(video_clip, start_time, audio_dur)
+			video_clip.write_videofile(os.path.join(out_dir, "{}_modified.mp4".format(prefix)))
+		except Exception as e:
+			print (e)
+			continue
+
+	# adujust_videodir_volume("/Users/tal/work/lingtok_server/video_process/悟空识字1200/悟空识字1200", "/Users/tal/work/lingtok_server/video_process/悟空识字1200/悟空识字1200_音量")
+	# video_processor = VideoProcessor()
+	# video_processor.volume_adjust("/Users/tal/work/lingtok_server/video_process/悟空识字1200/悟空识字1200/足_modified.mp4", "tmp.mp4")
+	# test_video = "testdir/test.mp4"
+	# zh_srt = "testdir/v0232eg10064ct6medaljhtabprl86pg_Chinese.srt"
+	# video_processor.chunk_video(test_video, zh_srt, "testdir/chunk_dir")
 
 
 	# compress_videos("../video_info_huoshan.csv", "../video_info_huoshan_compressed.csv")

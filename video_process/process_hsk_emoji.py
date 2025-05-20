@@ -593,7 +593,7 @@ if __name__ == "__main__":
     create_csv = os.path.join(root_dir, "create.csv")
 
     extract_images = True
-    from_charvideos = True
+    from_charvideos = False
 
     skip_enword = False
     skip_quiz = False

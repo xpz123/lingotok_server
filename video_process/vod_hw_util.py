@@ -9,6 +9,8 @@ import base64
 from tqdm import tqdm
 import pandas as pd
 from time import sleep
+from copy import deepcopy
+from tenacity import retry, stop_after_attempt, wait_fixed
 
 
 
@@ -67,6 +69,7 @@ def call_convert(asset_id):
         print(e.error_code)
         print(e.error_msg)
 
+@retry(stop=stop_after_attempt(3), wait=wait_fixed(3))
 def upload_media(video_path, zh_srt_path=None, en_srt_path=None, ar_srt_path=None, py_srt_path=None, cover_path=None, title=None, description=None):
     # create asset
     video_name = video_path.split("/")[-1].replace(".mp4", "")
@@ -190,6 +193,85 @@ def upload_media(video_path, zh_srt_path=None, en_srt_path=None, ar_srt_path=Non
         return None
 
 
+def update_asset_info(asset_id, zh_srt_path=None, en_srt_path=None, ar_srt_path=None, py_srt_path=None):
+    request = UpdateAssetRequest()
+    listSubtitlesbody = []
+    if py_srt_path != None:
+        with open(py_srt_path, 'rb') as fp:
+            data = fp.read()
+            py_file_md5 = str(base64.b64encode(hashlib.md5(data).digest()), 'utf-8')
+        py_srt_name = "{}_Pinyin.srt".format(asset_id)
+        listSubtitlesbody.append(Subtitle(
+            id=1,
+            type="SRT",
+            language="PY",
+            name=py_srt_name,
+            md5=py_file_md5
+        ))
+    
+    if en_srt_path != None:
+        with open(en_srt_path, 'rb') as fp:
+            data = fp.read()
+            en_file_md5 = str(base64.b64encode(hashlib.md5(data).digest()), 'utf-8')
+        en_srt_name = "{}_English.srt".format(asset_id)
+        listSubtitlesbody.append(Subtitle(
+            id=2,
+            type="SRT",
+            language="EN",
+            name=en_srt_name,
+            md5=en_file_md5
+        ))
+    if ar_srt_path != None:
+        with open(ar_srt_path, 'rb') as fp:
+            data = fp.read()
+            ar_file_md5 = str(base64.b64encode(hashlib.md5(data).digest()), 'utf-8')
+        ar_srt_name = "{}_Arabic.srt".format(asset_id)
+        listSubtitlesbody.append(Subtitle(
+            id=3,
+            type="SRT",
+            language="AR",
+            name=ar_srt_name,
+            md5=ar_file_md5
+        ))
+    if zh_srt_path != None:
+        with open(zh_srt_path, 'rb') as fp:
+            data = fp.read()
+            zh_file_md5 = str(base64.b64encode(hashlib.md5(data).digest()), 'utf-8')
+        zh_srt_name = "{}_Chinese.srt".format(asset_id)
+        listSubtitlesbody.append(Subtitle(
+            id=4,
+            type="SRT",
+            language="ZH",
+            name=zh_srt_name,
+            md5=zh_file_md5
+        ))
+    request.body = UploadAssetReq(
+        asset_id=asset_id,
+        subtitles=listSubtitlesbody
+    )
+    
+    try:
+        response = client.update_asset(request)
+        subtitle_upload_urls = response.subtitle_upload_urls
+        if zh_srt_path != None:
+            srt_success = put_srt(zh_srt_path, subtitle_upload_urls[3], zh_file_md5)
+            assert srt_success
+        if en_srt_path != None:
+            srt_success = put_srt(en_srt_path, subtitle_upload_urls[1], en_file_md5)
+            assert srt_success
+        if ar_srt_path != None:
+            srt_success = put_srt(ar_srt_path, subtitle_upload_urls[2], ar_file_md5)
+            assert srt_success
+        if py_srt_path != None:
+            srt_success = put_srt(py_srt_path, subtitle_upload_urls[0], py_file_md5)
+            assert srt_success
+    except exceptions.ClientRequestException as e:
+        print(e.status_code)
+        print(e.request_id)
+        print(e.error_code)
+        print(e.error_msg)
+
+
 def upload_hw_withcsv(video_info_csv, out_csv):
     df = pd.read_csv(video_info_csv)
     columns= df.columns.tolist()
@@ -256,23 +338,42 @@ def upload_hw_withcsv(video_info_csv, out_csv):
     df_new = pd.DataFrame(df_new_list, columns=columns)
     df_new.to_csv(out_csv, index=False)
 
-def show_playurls_by_assetid(asset_id_list):
-    request = ShowAssetMetaRequest()
-    request.asset_id = asset_id_list
-    response = client.show_asset_meta(request)
-    assert len(response.asset_info_array) == len(asset_id_list)
+
+def show_playinfo_by_assetids(asset_id_list):
+    batch_size = 10
+    all_results = []
     
-    video_urls = []
-    for asset_info in response.asset_info_array:
-        video_url = asset_info.base_info.video_url
-        video_urls.append(video_url)
+    # 将asset_id_list分批处理
+    for i in range(0, len(asset_id_list), batch_size):
+        batch_ids = asset_id_list[i:i + batch_size]
+        request = ShowAssetMetaRequest()
+        request.asset_id = batch_ids
+        
+        try:
+            response = client.show_asset_meta(request)
+            assert len(response.asset_info_array) == len(batch_ids)
+            
+            assetid_to_info = {}
+            for asset_info in response.asset_info_array:
+                video_infod = {}
+                video_infod["play_url"] = asset_info.base_info.video_url
+                video_infod["py_srt_url"] = asset_info.base_info.subtitle_info[0].url
+                video_infod["en_srt_url"] = asset_info.base_info.subtitle_info[1].url
+                video_infod["ar_srt_url"] = asset_info.base_info.subtitle_info[2].url
+                video_infod["zh_srt_url"] = asset_info.base_info.subtitle_info[3].url
+                assetid_to_info[asset_info.asset_id] = video_infod
+            for asset_id in batch_ids:
+                all_results.append(assetid_to_info[asset_id])
+                
+        except Exception as e:
+            print(f"处理批次 {i//batch_size + 1} 时出错: {e}")
+            continue
     
-    assert len(video_urls) == len(asset_id_list)
-    
-    return video_urls
+    return all_results
 
 if __name__ == "__main__":
-    show_asset_meta_by_assetid(["a5ab5ce9b4e6f1e1901343d555938ee4"])
+    update_asset_info("598eea4e9c4e26a4619a381bafa9cabd", py_srt_path="/Users/tal/work/lingtok_server/video_process/沙特女子Demo/初级汉语/词汇练习/srt_dir/1215_眼镜_Pinyin.srt", zh_srt_path="/Users/tal/work/lingtok_server/video_process/沙特女子Demo/初级汉语/词汇练习/srt_dir/1215_眼镜_Arabic.srt", ar_srt_path="/Users/tal/work/lingtok_server/video_process/沙特女子Demo/初级汉语/词汇练习/srt_dir/1215_眼镜_Chinese.srt", en_srt_path="/Users/tal/work/lingtok_server/video_process/沙特女子Demo/初级汉语/词汇练习/srt_dir/1215_眼镜_English.srt")
+    # show_playinfo_by_assetids(["a5ab5ce9b4e6f1e1901343d555938ee4"])
     # pass
     # df = pd.read_csv("/Users/tal/work/lingtok_server/video_info_hw_created.csv")
     # df.drop("asset_id", axis=1, inplace=True)

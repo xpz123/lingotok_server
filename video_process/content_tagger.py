@@ -91,7 +91,7 @@ class ContentTagger:
         return self.hsk_level_word_dict["level{}".format(level)]
 
     def tag_word_video_hsklevel(self, word, level=None):
-        if not level:
+        if level:
             assert level in [1, 2, 3, 4, 5, 6]
             return level
         else:
@@ -206,7 +206,7 @@ class ContentTagger:
         except:
             return None
     
-    def split_srt_words(self, subtitle_file):
+    def split_srt_words(self, subtitle_file, use_ner=True):
         subtitles = pysrt.open(subtitle_file)
         word_list = list()
         sent_list = list()
@@ -215,11 +215,12 @@ class ContentTagger:
             seg_list = jieba.cut(sub_text, cut_all=False)
             # remove Chinese punctuation
             seg_list = [word for word in seg_list if word]
-            ners = self.ner([seg_list], tasks='ner*')
-            del_idx_list = list()
-            for item in ners[0]:
-                item_idx = item[2]
-                del_idx_list.append(item_idx)
+            if use_ner:
+                ners = self.ner([seg_list], tasks='ner*')
+                del_idx_list = list()
+                for item in ners[0]:
+                    item_idx = item[2]
+                    del_idx_list.append(item_idx)
             
             for idx, word in enumerate(seg_list):
                 if word in punctuation:
@@ -228,8 +229,9 @@ class ContentTagger:
                     continue
                 if word.strip() == "":
                     continue
-                if idx in del_idx_list:
-                    continue
+                if use_ner:
+                    if idx in del_idx_list:
+                        continue
                 word_list.append(word)
             # print (word_list)
             # seg_list = [word for word in seg_list if word not in punctuation]

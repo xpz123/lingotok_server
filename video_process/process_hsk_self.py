@@ -21,19 +21,23 @@ from pypinyin import pinyin
 from retrying import retry
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from recommender.quiz_generator import CharPinyinQuizGeneratingWorker, QuizGeneratingCtx
+from recommender.quiz_generator import CharPinyinQuizGeneratingWorker, QuizGeneratingCtx, CharFillingQuizGeneratingWorker
 
 video_processor = VideoProcessor()
 
-def add_pinyin_to_video(video_path, word, out_video_file):
+def add_pinyin_to_video_with_volume_adjust(video_path, word, out_video_file):
     video = VideoFileClip(video_path)
+
     video = video_processor.volume_adjust_with_videoclip(video, target_db=-30, threshold_db=5)
     if video is None:
         print ("音量调整失败, 使用原音频")
         video = VideoFileClip(video_path)
-
+    
     py_list = pinyin(word)
-    py_str = " ".join(py_list[0])
+    py_str = ""
+    for py in py_list:
+        if len(py) > 0:
+            py_str += py[0] + " " 
     txt_clip_chinese = TextClip("{}\n{}".format(py_str, word), fontsize=60, color='black', font='Songti-SC-Black')
     # txt_clip_chinese = txt_clip_chinese.set_position(('center', 0.15), relative=True).set_duration(video.duration)
     chinese_bg_color = ColorClip(size=(txt_clip_chinese.w, txt_clip_chinese.h), color=(255, 255, 255), duration=video.duration)
@@ -145,12 +149,25 @@ def prep_hw_data():
     ## 等待merge
     video_dir_list = []
     # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/悟空识字1200/testdir")
-    video_dir_list.append("/Users/tal/work/lingtok_server/video_process/悟空识字1200/悟空识字1200")
-    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/视频内容库查漏补缺-已修改-428/汉字基础/1.从象形字（如日、月）入手，理解汉字构造逻辑，降低记忆难度")
+    # video_dir_list.append("/Users/tal/work/lingtok_server/video_process/悟空识字1200/悟空识字1200")
+    video_dir_list.append("/Users/tal/work/lingtok_server/video_process/HSK_video/hsk_video/600words_mp4")
 
 
     for video_dir in video_dir_list:
+        # video_list = list()
+
+        # for root, dirs, files in os.walk(video_dir):
+        #     for f in files:
+        #         if f.find(".mp4") != -1 and f.find("modified") == -1:
+        #             modified_video_path = os.path.join(root, f.replace(".mp4", "_modified.mp4"))
+        #             if not os.path.exists(modified_video_path):
+        #                 try:
+        #                     add_pinyin_to_video_with_volume_adjust(os.path.join(root, f), f.split(".")[0], modified_video_path)
+        #                 except Exception as e:
+        #                     print (str(e))
+        #             video_list.append(modified_video_path)
         
+
         srt_dir = os.path.join(video_dir, "srt_dir")
         out_csv_file = os.path.join(video_dir, "video_info.csv")
         srt_csv_file = os.path.join(video_dir, "video_info_srt.csv")
@@ -165,8 +182,6 @@ def prep_hw_data():
         vod_csv_file = os.path.join(video_dir, "video_info_vod_hw.csv")
         tag_csv_file = os.path.join(video_dir, "video_info_tag.csv")
         cus_tag = "PNU888"
-        series_name = "悟空识字"
-        # series_name = "象形字"
         
         # For debug
         skip_srt = True
@@ -178,8 +193,6 @@ def prep_hw_data():
 
         skip_create = False
         skip_series_name = False
-
-        
 
         video_processor = VideoProcessor()
 
@@ -216,60 +229,54 @@ def prep_hw_data():
         
         if not skip_refine_video:
             df = pd.read_csv(srt_csv_file)
+            df_list = df.values.tolist()
+            new_df_list = list()
+            columns = df.columns.to_list()
+
             for i in tqdm(range(df.shape[0])):
                 video_path = df.iloc[i]["FileName"]
                 modified_video_path = video_path.replace(".mp4", "_modified.mp4")
                 if not os.path.exists(modified_video_path):
-                    add_pinyin_to_video(video_path, df.iloc[i]["title"].split("_")[-2].strip(), modified_video_path)
-                df.iloc[i]["FileName"] = modified_video_path
-            df.to_csv(video_csv_file, index=False)
+                    try:
+                        add_pinyin_to_video_with_volume_adjust(video_path, video_path.split("/")[-1].split(".")[0].split("（")[0], modified_video_path)
+                        df_list[i][0] = modified_video_path
+                        new_df_list.append(df_list[i])
+                    except Exception as e:
+                        print (str(e))
+                else:
+                    df_list[i][0] = modified_video_path
+                    new_df_list.append(df_list[i])
+            new_df = pd.DataFrame(new_df_list, columns=columns)
+            new_df.to_csv(video_csv_file, index=False)
         
-        import pdb; pdb.set_trace(); 
+
         if not skip_quiz:
             df = pd.read_csv(video_csv_file)
             columns = df.columns.to_list()
             columns.append("quiz_id")
-            columns.append("拼音")
+
             df_list = df.values.tolist()
             fw = open(quiz_metainfo_file, "w", encoding="utf-8")
 
             quiz_ctx = QuizGeneratingCtx()
             quiz_worker_config = {"hsk_zh_en_ar_path": "hsk_dictionary/HSK_zh_en_ar.csv", "hsk_char_path": "hsk_dictionary/HSK_char.csv"}
             quiz_worker = CharPinyinQuizGeneratingWorker(quiz_worker_config)
+            word_quiz_worker = CharFillingQuizGeneratingWorker(quiz_worker_config)
             for i in tqdm(range(df.shape[0])):
-                if series_name == "象形字":
-                    word = df.iloc[i]["title"].strip()[-1]
-                else:
-                    word = df.iloc[i]["title"].split("_")[-2].strip()
+                word = df.iloc[i]["title"].split("_")[-1].strip().split("（")[0]
+                df_list[i][1] = df_list[i][1].replace("_modified", "")
 
-                if series_name == "象形字":
-                    df_list[i][1] = "象形字_{}".format(word)
-                else:
-                    df_list[i][1] = df_list[i][1].replace("_modified", "")
-                print (df_list[i][1])
-                py = pinyin(word)[0][0]
                 quiz_ctx.extracted_word = word
                 try:
-                    quiz_res = quiz_worker.action(quiz_ctx)
-                    content = quiz_worker.to_dict(quiz_res)
+                    if len(word) > 1:
+                        quiz_res = word_quiz_worker.action(quiz_ctx)
+                        content = word_quiz_worker.to_dict(quiz_res)
+                    else:
+                        quiz_res = quiz_worker.action(quiz_ctx)
+                        content = quiz_worker.to_dict(quiz_res)
                 
-                
-                    # content = dict()
-                    # content["question"] = quiz_res["quiz_language_list"][0]["question"]
-                    # content["options"] = quiz_res["quiz_language_list"][0]["option_list"]
-                    # content["answer"] = quiz_res["quiz_language_list"][0]["answer_list"][0]
-                    # content["explanation"] = ""
-                    
-                    # # multi_lingual_quiz = video_processor.translate_zh_quiz(content)
-                    # content["ar_question"] = quiz_res["quiz_language_list"][1]["question"]
-                    # content["ar_options"] = quiz_res["quiz_language_list"][1]["option_list"]
-                    # content["ar_explanation"] = ""
-                    # content["en_question"] = quiz_res["quiz_language_list"][2]["question"]
-                    # content["en_options"] = quiz_res["quiz_language_list"][2]["option_list"]
-                    # content["en_explanation"] = ""
                     content["vid"] = "{}_{}".format(i, word)
                     df_list[i].append(content["vid"])
-                    df_list[i].append(py)
                     fw.write("{}\n".format(json.dumps(content, ensure_ascii=False)))
                 except Exception as e:
                     print (str(e))
@@ -277,7 +284,8 @@ def prep_hw_data():
             fw.close()
             df_list = pd.DataFrame(df_list, columns=columns)
             df_list.to_csv(quiz_csv_file, index=False)
-        
+                
+        import pdb; pdb.set_trace(); 
         if not skip_tag_video:
             update_video_info_csv_level(quiz_csv_file, tag_csv_file)
 
@@ -300,12 +308,12 @@ def prep_hw_data():
             # upload_huoshan_withcsv(tag_csv_file, vod_csv_file)
 
         if not skip_create:
-            create_with_csv(quiz_metainfo_file, vod_csv_file, out_csv_file, customize=cus_tag, series_name=series_name)
+            create_with_csv(quiz_metainfo_file, vod_csv_file, out_csv_file, customize=cus_tag, series_name="hsk_自制")
         
         if not skip_series_name:
             from recommender.video_updater import VideoUpdater
             video_updater = VideoUpdater()
-            video_updater.update_series_tag_once(series_name, level="初学", tag_list=["科学教育"])
+            video_updater.update_series_tag_once("hsk_自制", level="初学", tag_list=["科学教育"])
     
         # merge_csv_huoshan("/Users/tal/work/lingtok_server/video_info_hw_created.csv", out_csv_file)
 
