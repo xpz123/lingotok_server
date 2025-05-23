@@ -8,7 +8,7 @@ import time
 import logging
 import logging.handlers
 import os
-from recaller import CustomizedRecaller, LevelRecaller, RandomRecaller, PopRecaller, LevelInterestRecaller
+from recaller import CustomizedRecaller, LevelRecaller, RandomRecaller, PopRecaller, LevelInterestRecaller, FunvideosRecaller
 from recommender.user_profile_generator import UserProfileGenerator, UserProfileCtx
 
 
@@ -133,7 +133,7 @@ class ReRanker:
 class RecommenderV2_0:
     def __init__(self):
         # self.recaller_dict = {"latest": LatestRecaller(), "customized": CustomizedRecaller(), "continuous": ContinuousRecaller(), "series": SeriesRecaller(), "level": LevelRecaller(), "random": RandomRecaller(), "pop": PopRecaller(), "level_interest": LevelInterestRecaller()}
-        self.recaller_dict = {"customized": CustomizedRecaller(), "level": LevelRecaller(), "random": RandomRecaller(), "pop": PopRecaller(), "level_interest": LevelInterestRecaller()}
+        self.recaller_dict = {"customized": CustomizedRecaller(), "level": LevelRecaller(), "random": RandomRecaller(), "pop": PopRecaller(), "level_interest": LevelInterestRecaller(), "fun": FunvideosRecaller()}
         self.prerecall_strategy = PrerecallStrategy()
         self.user_profile_generator = UserProfileGenerator()
         self.ranker = Ranker()
@@ -164,10 +164,10 @@ class RecommenderV2_0:
         size = min(20, size)
         recommender_ctx.size = size
 
-        pop_video_ids = await self.recaller_dict["pop"].recall(recommender_ctx)
-        recommender_ctx.recall_result_dict["pop"] = pop_video_ids
-        recommender_ctx.rank_result = pop_video_ids
-        recommender_ctx.rerank_result = pop_video_ids
+        fun_video_ids = await self.recaller_dict["fun"].recall(recommender_ctx)
+
+        recommender_ctx.rank_result = fun_video_ids
+        recommender_ctx.rerank_result = fun_video_ids
         return recommender_ctx.rerank_result[:size]
         
 

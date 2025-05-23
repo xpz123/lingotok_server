@@ -167,7 +167,26 @@ class LevelRecaller(Recaller):
             recall_videos += series_videos[:self.max_each_series_count]
         rd.shuffle(recall_videos)
         return recall_videos[:self.recall_count]
+
+class FunvideosRecaller(Recaller):
+    # recall videos for unlogin users
+    def __init__(self):
+        self.funny_series_names = ['TT_0520_art', 'TT_0520_oddly_satisfy', 'TT_0520_music', 'TT_0520_car', 'TT_0520_fitness_health' 'TT_0520_anime_comics',  'TT_0520_outdoors', 'TT_0520_dance', 'TT_0520_entertainment_culture', 'TT_0520_comedy', 'TT_0520_travel', 'TT_0520_technology',  'TT_0520_gaming', 'TT_0520_family', 'TT_0520_beauty_style', 'TT_0520_finance', 'TT_0520_vlogs', 'TT_0520_sport:sports', 'TT_0520_food_drink', 'TT_0520_diy', 'TT_0520_motivation_advice']
+        self.recall_series_count = 5
+        self.recall_video_perseries_count = 3
+        self.recall_count = 10
     
+    async def recall(self, recommender_ctx):
+        rd.shuffle(self.funny_series_names)
+        recall_sereis_name_list = self.funny_series_names[:self.recall_series_count]
+        recall_video_ids = []
+        for series_name in recall_sereis_name_list:
+            series_video_ids = await lrange_redis("video_series-{}".format(series_name), 0, -1)
+            rd.shuffle(series_video_ids)
+            recall_video_ids += series_video_ids[:self.recall_video_perseries_count]
+        rd.shuffle(recall_video_ids)
+        return recall_video_ids[:self.recall_count]
+
 class LevelInterestRecaller(Recaller):
     def __init__(self):
         self.recall_count = 20
