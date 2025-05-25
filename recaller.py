@@ -97,6 +97,10 @@ class CustomizedRecaller(Recaller):
     async def recall(self, recommender_ctx):
         basic_user_info = recommender_ctx.user_profile_ctx.user_basic_info
         invite_code = basic_user_info.invite_code
+        if invite_code == None:
+            return []
+        if invite_code.strip() == "":
+            return []
         try:
             customize_videos = await lrange_redis("video_customize-{}".format(invite_code), 0, -1)
             rd.shuffle(customize_videos)
