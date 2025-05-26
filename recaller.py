@@ -148,25 +148,24 @@ class LevelRecaller(Recaller):
     async def recall(self, recommender_ctx):
         # recall_videos = []
         user_level = recommender_ctx.user_profile_ctx.user_basic_info.level
-        level_prefix = "video_series_level-"
+        # level_prefix = "video_series_level-"
+        level_prefix = "series_level-"
         # user_level <= 1时， 从redis获取入门、初学系列
         recall_series = []
         if user_level <= 1:
-            key = "{}{}".format(level_prefix, "入门")
-            recall_series += await lrange_redis(key, 0, -1)
-            key = "{}{}".format(level_prefix, "初学")
-            recall_series += await lrange_redis(key, 0, -1)
+            key = "{}{}".format(level_prefix, "easy")
+            recall_series = await lrange_redis(key, 0, -1)
             
         elif user_level == 2:
-            key = "{}{}".format(level_prefix, "中等")
+            key = "{}{}".format(level_prefix, "medium")
             recall_series = await lrange_redis(key, 0, -1)
         else:
-            key = "{}{}".format(level_prefix, "难")
+            key = "{}{}".format(level_prefix, "hard")
             recall_series = await lrange_redis(key, 0, -1)
         rd.shuffle(recall_series)
         recall_videos = []
         for i in range(min(len(recall_series), self.recall_from_series_count)):
-            series_videos = await lrange_redis("video_series-{}".format(recall_series[i]), 0, -1)
+            series_videos = await lrange_redis("series_video-{}".format(recall_series[i]), 0, -1)
             rd.shuffle(series_videos)
             recall_videos += series_videos[:self.max_each_series_count]
         rd.shuffle(recall_videos)
@@ -175,17 +174,20 @@ class LevelRecaller(Recaller):
 class FunvideosRecaller(Recaller):
     # recall videos for unlogin users
     def __init__(self):
-        self.funny_series_names = ['TT_0520_art', 'TT_0520_oddly_satisfy', 'TT_0520_music', 'TT_0520_car', 'TT_0520_fitness_health' 'TT_0520_anime_comics',  'TT_0520_outdoors', 'TT_0520_dance', 'TT_0520_entertainment_culture', 'TT_0520_comedy', 'TT_0520_travel', 'TT_0520_technology',  'TT_0520_gaming', 'TT_0520_family', 'TT_0520_beauty_style', 'TT_0520_finance', 'TT_0520_vlogs', 'TT_0520_sport:sports', 'TT_0520_food_drink', 'TT_0520_diy', 'TT_0520_motivation_advice']
+        # self.funny_series_names = ['TT_0520_art', 'TT_0520_oddly_satisfy', 'TT_0520_music', 'TT_0520_car', 'TT_0520_fitness_health' 'TT_0520_anime_comics',  'TT_0520_outdoors', 'TT_0520_dance', 'TT_0520_entertainment_culture', 'TT_0520_comedy', 'TT_0520_travel', 'TT_0520_technology',  'TT_0520_gaming', 'TT_0520_family', 'TT_0520_beauty_style', 'TT_0520_finance', 'TT_0520_vlogs', 'TT_0520_sport:sports', 'TT_0520_food_drink', 'TT_0520_diy', 'TT_0520_motivation_advice']
+        # self.funny_series_ids = ['68297be2493ae9d4e77ed4ac', '68297be2493ae9d4e77ed4ad', '68297be4493ae9d4e77ed4b1', '68297be4493ae9d4e77ed4b2', '68297be5493ae9d4e77ed4b5', '68297be5493ae9d4e77ed4b6', '68297be7493ae9d4e77ed4b9', '68297be7493ae9d4e77ed4ba', '68297be8493ae9d4e77ed4bc', '68297bec493ae9d4e77ed4c8', '6829ab16733471d672d69f61', '682fea61bc51970be22c35c2', '682fea6abc51970be22c35c3', '682fea71bc51970be22c35c4', '682fea78bc51970be22c35c5', '682fea7cbc51970be22c35c6', '682fea83bc51970be22c35c7', '682fea89bc51970be22c35c8', '682fea8fbc51970be22c35c9', '682fea94bc51970be22c35ca', '682fea99bc51970be22c35cb', '682fea9ebc51970be22c35cc', '682feaa3bc51970be22c35cd', '682feaa9bc51970be22c35ce', '682feaadbc51970be22c35cf', '682feab5bc51970be22c35d0', '682feababc51970be22c35d1', '682feabfbc51970be22c35d2', '682feac3bc51970be22c35d3', '682feacabc51970be22c35d4', '682fead1bc51970be22c35d5', '682fead5bc51970be22c35d6']
         self.recall_series_count = 5
         self.recall_video_perseries_count = 3
         self.recall_count = 10
     
     async def recall(self, recommender_ctx):
-        rd.shuffle(self.funny_series_names)
-        recall_sereis_name_list = self.funny_series_names[:self.recall_series_count]
+        easy_series_ids = await lrange_redis("series_level-easy", 0, -1)
+
+        rd.shuffle(easy_series_ids)
+
         recall_video_ids = []
-        for series_name in recall_sereis_name_list:
-            series_video_ids = await lrange_redis("video_series-{}".format(series_name), 0, -1)
+        for series_id in easy_series_ids[:self.recall_series_count]:
+            series_video_ids = await lrange_redis("series_video-{}".format(series_id), 0, -1)
             rd.shuffle(series_video_ids)
             recall_video_ids += series_video_ids[:self.recall_video_perseries_count]
         rd.shuffle(recall_video_ids)
@@ -291,13 +293,15 @@ if __name__ == "__main__":
     # key = "video_series-pnu1"
     # key = "video_series_interest_level-旅行_难"
     # key = "video_customize-KAU777"
-    keys = ['video-67af00380efa0542fbfdfff5', 'video-67af1034f2eb187c98ad6ef9', 'video-67bdd5c732790b134f93ea51', 'video-6786a9ea0fcb32e4238fcec4', 'video-6781456f41a163009adbc072', 'video-677ed4f5c2a3a301cdb08a21', 'video-677e36f14195abbf0944363d', 'video-677222265094f908c47a6ad4', 'video-67af120ef2eb187c98ad6f11', 'video-678c7a3db1b7a679c45074f1', 'video-67aeaa0b0efa0542fbfdf8fb', 'video-677f7d6341a163009adbbb4d', 'video-677ea611c2a3a301cdb08968', 'video-677223fa170f6da8ffa64fce', 'video-67722424170f6da8ffa64ff0', 'video-678c6bde90cab62a6d35f088', 'video-67befeb2aaba77bbb7795283', 'video-67af1578f2eb187c98ad6f45', 'video-678cd1b5e19148c899eeb216', 'video-6772d1faf5a17f43b2787b54', 'video-677e37254195abbf09443665', 'video-677223d05094f908c47a6c14', 'video-67794daa55287df7f874aa98', 'video-67794ee655287df7f874abc6', 'video-677e204151db2063f2d1dff1', 'video-677aa3d450b32456b794e8dd', 'video-67794dcfe257f0bcbe9d49a8', 'video-6785cfc3f94c296761f2593a', 'video-677e426a4195abbf094436fb', 'video-677e3490c2a3a301cdb084d5', 'video-677e37484195abbf09443675', 'video-677e36614195abbf094435fb', 'video-67af15b30efa0542fbfe02b5', 'video-677e41d74195abbf094436a3', 'video-67794e4b55287df7f874ab42', 'video-67722543170f6da8ffa650e2', 'video-67b837960f12a8ea4447e970']
+    # keys = ['video-67af00380efa0542fbfdfff5', 'video-67af1034f2eb187c98ad6ef9', 'video-67bdd5c732790b134f93ea51', 'video-6786a9ea0fcb32e4238fcec4', 'video-6781456f41a163009adbc072', 'video-677ed4f5c2a3a301cdb08a21', 'video-677e36f14195abbf0944363d', 'video-677222265094f908c47a6ad4', 'video-67af120ef2eb187c98ad6f11', 'video-678c7a3db1b7a679c45074f1', 'video-67aeaa0b0efa0542fbfdf8fb', 'video-677f7d6341a163009adbbb4d', 'video-677ea611c2a3a301cdb08968', 'video-677223fa170f6da8ffa64fce', 'video-67722424170f6da8ffa64ff0', 'video-678c6bde90cab62a6d35f088', 'video-67befeb2aaba77bbb7795283', 'video-67af1578f2eb187c98ad6f45', 'video-678cd1b5e19148c899eeb216', 'video-6772d1faf5a17f43b2787b54', 'video-677e37254195abbf09443665', 'video-677223d05094f908c47a6c14', 'video-67794daa55287df7f874aa98', 'video-67794ee655287df7f874abc6', 'video-677e204151db2063f2d1dff1', 'video-677aa3d450b32456b794e8dd', 'video-67794dcfe257f0bcbe9d49a8', 'video-6785cfc3f94c296761f2593a', 'video-677e426a4195abbf094436fb', 'video-677e3490c2a3a301cdb084d5', 'video-677e37484195abbf09443675', 'video-677e36614195abbf094435fb', 'video-67af15b30efa0542fbfe02b5', 'video-677e41d74195abbf094436a3', 'video-67794e4b55287df7f874ab42', 'video-67722543170f6da8ffa650e2', 'video-67b837960f12a8ea4447e970']
     async def main():
         await init_redis_pool()  # 首先需要初始化redis连接
         # recall_series = await lrange_redis(key, 0, -1)
         # print(recall_series)
         # recall_videos = await zrange_redis(key, 0, -1)
-        results = await get_redis_concurrent(keys)
+        # results = await get_redis_concurrent(keys)
+        level_recaller = LevelRecaller()
+        results = await level_recaller.recall(None)
         print(results)
         await close_redis_pool()  # 最后关闭redis连接
     
