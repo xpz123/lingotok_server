@@ -142,8 +142,6 @@ def update_quiz_metainfo(video_info_filename, metainfo_filename):
 
 def add_pinyin_srt(video_info_file, new_video_info_file):
 	video_processor = VideoProcessor()
-	import pdb
-	pdb.set_trace()
 	df = pd.read_csv(video_info_file)
 	for i in tqdm(range(df.shape[0])):
 		zh_srt = df.iloc[i]["zh_srt"].replace("\\", "/")
@@ -884,7 +882,7 @@ class VideoProcessor:
 			res.append({"video_file": chunk_file, "zh_srt": zh_chunk_srt, "en_srt": en_chunk_srt, "ar_srt": ar_chunk_srt, "py_srt": py_chunk_srt})
 		return res
 			
-	def extract_frames_from_video(self, video_file, out_frame_dir, extract_word=False, frame_interval=100):
+	def extract_frames_from_video(self, video_file, out_frame_dir, extract_word=False, frame_interval=100, end_time=10.0):
 		prefix = out_frame_dir.split("/")[-1].split(".")[0]
 		video = cv2.VideoCapture(video_file)
 		if not video.isOpened():
@@ -905,7 +903,7 @@ class VideoProcessor:
 				continue
 
 
-			if timestamp > 10.0:
+			if timestamp > end_time:
 				break
 			
 			# 检测是否为关键帧

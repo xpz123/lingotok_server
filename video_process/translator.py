@@ -179,14 +179,20 @@ class Translator:
             res = self.hsk_word_dict[zh_word]
         else:
             res = {"en": "", "ar": ""}
-        
-        if res["en"] == "":
-            prompt = "请将下面的中文单词翻译成英文：{}\n###注意只返回英文翻译，不需要任何其他内容。###".format(zh_word)
-            res["en"] = call_doubao_pro_15_32k(prompt)
-        
-        if res["ar"] == "":
-            prompt = "请将下面的中文单词翻译成阿拉伯语：{}\n###注意只返回阿拉伯语翻译，不需要任何其他内容。###".format(zh_word)
-            res["ar"] = call_gpt4o(prompt)
+        try:
+            if res["en"] == "":
+                res["en"] = translate_text2ar([zh_word], "en")[0]["Translation"]
+                
+                # prompt = "请将下面的中文单词翻译成英文：{}\n###注意只返回英文翻译，不需要任何其他内容。###".format(zh_word)
+                # res["en"] = call_doubao_pro_15_32k(prompt)
+            
+            if res["ar"] == "":
+                res["ar"] = translate_text2ar([zh_word], "ar")[0]["Translation"]
+                # prompt = "请将下面的中文单词翻译成阿拉伯语：{}\n###注意只返回阿拉伯语翻译，不需要任何其他内容。###".format(zh_word)
+                # res["ar"] = call_gpt4o(prompt)
+        except Exception as e:
+            print (str(e))
+            res = {"en": "", "ar": ""}
         
         return res
     
