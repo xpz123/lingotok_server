@@ -4,7 +4,7 @@ from volcengine.ApiInfo import ApiInfo
 from volcengine.Credentials import Credentials
 from volcengine.ServiceInfo import ServiceInfo
 from volcengine.base.Service import Service
-from llm_util import call_doubao_pro_15_32k, call_doubao_pro_15_32k_parallel, call_gpt4o, call_api_parallel, call_claude_3_7
+# from llm_util import call_doubao_pro_15_32k, call_doubao_pro_15_32k_parallel, call_gpt4o, call_api_parallel, call_claude_3_7
 import os
 from tqdm import tqdm
 import pandas as pd
