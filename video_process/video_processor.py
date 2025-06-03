@@ -1016,47 +1016,57 @@ class VideoProcessor:
 		return final_video
 		
 	def add_audio_to_videoclip_v1(self, video_clip, audio_file, start_time, duration):
-		# 获取原始音频
-		original_audio = video_clip.audio
+		# 将视频分成三段：start_time之前、暂停期间、之后
+		# if start_time > 0:
+		# 	video_before = video_clip.subclip(0, start_time)
+		# else:
+		# 	video_before = None
 		
-		# 创建两段音频：start_time之前和之后
-		if start_time > 0:
-			audio_before = original_audio.subclip(0, start_time)
-		else:
-			audio_before = None
-			
-		audio_during = original_audio.subclip(start_time, start_time + duration).volumex(0.2)
-		
-		if start_time + duration < video_clip.duration:
-			audio_after = original_audio.subclip(start_time + duration, video_clip.duration)
-		else:
-			audio_after = None
-		
-		# 加载新音频文件
 		new_audio = AudioFileClip(audio_file).subclip(0, duration)
+		# 暂停期间使用最后一帧创建静止画面
+		pause_frame = video_clip.get_frame(start_time)
+		pause_clip = ImageClip(pause_frame).set_duration(duration).set_audio(new_audio)
+
 		
-		# 合并音频片段
-		audio_clips = []
-		if audio_before is not None:
-			audio_clips.append(audio_before)
-		audio_clips.append(new_audio.set_start(start_time))
-		audio_clips.append(audio_during.set_start(start_time))
-		if audio_after is not None:
-			audio_clips.append(audio_after.set_start(start_time + duration))
-		# audio_clips.extend([new_audio.set_start(start_time)])
-		# if audio_after is not None:
-		# 	audio_after.set_start(start_time + duration)
-		# 	audio_clips.append(audio_after)
-		
-		# 创建合成音频
-		final_audio = CompositeAudioClip(audio_clips)
+		# video_after = video_clip.subclip(start_time, video_clip.duration)
+
+		# final_video = concatenate_videoclips([video_before, pause_clip, video_after])
 		
 		# 返回带有新音频的视频片段
-		return video_clip.set_audio(final_audio)
+		return pause_clip
 
 
 if __name__ == "__main__":
 	video_processor = VideoProcessor()
+
+	video_path = "test_end.mp4"
+	video_clip = VideoFileClip(video_path)
+	merged_audio_path = "/Users/tal/work/lingtok_server/video_process/自制视频/视频加文字/5.23 for enxin/animals/audios/哈士奇_merged.wav"
+
+	
+	# insert_clip = video_processor.add_audio_to_videoclip_v1(video_clip, merged_audio_path, 1000 / 1000.0, 7)
+	# insert_clip = video_processor.add_zhword_to_videoclip(insert_clip, "你好", 0, 7)
+	# insert_clip = video_processor.add_process_bar_to_videoclip(insert_clip, 0, 7)
+	# insert_clip.fps = video_clip.fps
+	# insert_clip.write_videofile("test.mp4", codec="libx264", audio_codec="aac", bitrate="442k")
+	# cmd = "/opt/homebrew/Cellar/ffmpeg/7.1_4/bin/ffmpeg -y -ss 00:00:00 -i \"{}\"  -to 00:00:01 -c:v copy -c:a copy -bsf:v h264_mp4toannexb -f mpegts \"{}\"".format("test_begin.mp4", "test_begin.ts")
+	# os.system(cmd)
+	# cmd = "/opt/homebrew/Cellar/ffmpeg/7.1_4/bin/ffmpeg -y -i test_end.mp4 -c copy -bsf:v h264_mp4toannexb -f mpegts \"{}\"".format("test.ts")
+	# os.system(cmd)
+	# cmd = "/opt/homebrew/Cellar/ffmpeg/7.1_4/bin/ffmpeg -ss 00:00:01 -i \"{}\" -c:v copy -c:a copy -bsf:v h264_mp4toannexb -f mpegts \"{}\"".format(video_path, "test_end.ts")
+	# os.system(cmd)
+	# insert_clip.write_videofile("test.mp4", codec="libx264", audio_codec="aac")
+
+	# import pdb; pdb.set_trace()
+
+	cmd = "/opt/homebrew/Cellar/ffmpeg/7.1_4/bin/ffmpeg -y -f concat -safe 0 -i test.list -c copy -reset_timestamps 1 test_concat.mp4"
+	# cmd = "/opt/homebrew/Cellar/ffmpeg/7.1_4/bin/ffmpeg -y -i \"concat:test_begin.ts|test.ts\" -c copy -bsf:a aac_adtstoasc test_concat.mp4"
+	os.system(cmd)
+
+	# /opt/homebrew/Cellar/ffmpeg/7.1_4/bin/ffmpeg -i test_begin.mp4 -i test.mp4 -i test_end.mp4 -filter_complex "[0:v:0][0:a:0][1:v:0][1:a:0][2:v:0][2:a:0]concat=n=3:v=1:a=1[outv][outa]" -map "[outv]" -map "[outa]" -c:v libx264 -crf 23 -preset fast -c:a aac -b:a 128k test_concat.mp4
+	import pdb; pdb.set_trace()
+
+	
 	# video_path = "/Users/tal/work/lingtok_server/video_process/自制视频/视频加文字/小红书/“踏碎千万片相似的雪花，凝望彼此眼中从未消融的永夜”.mp4"
 	# video_path = "/Users/tal/work/lingtok_server/video_process/自制视频/视频加文字/小红书/“当我终于实现穿着婚纱在海边骑马的梦想”.mp4"
 	# video_path = "/Users/tal/work/lingtok_server/video_process/自制视频/视频加文字/小红书/“旋风六连踢”！一套连招引全场欢呼.mp4"
@@ -1069,80 +1079,80 @@ if __name__ == "__main__":
 
 	# frame_dir = "自制视频/视频加文字/小红书/frames"
 	# root_dir = "/Users/tal/work/lingtok_server/video_process/自制视频/视频加文字/小红书"
-	root_dir = "/Users/tal/work/lingtok_server/video_process/自制视频/视频加文字/抖音trending视频/视频2"
-	video_dir = os.path.join(root_dir, "ori_videos")
-	frame_dir = os.path.join(root_dir, "frames")
-	if not os.path.exists(frame_dir):
-		os.makedirs(frame_dir)
-	audio_dir = os.path.join(root_dir, "audios")
-	if not os.path.exists(audio_dir):
-		os.makedirs(audio_dir)
-	out_dir = os.path.join(root_dir, "outputs")
-	if not os.path.exists(out_dir):
-		os.makedirs(out_dir)
-	words_dir = os.path.join(root_dir, "words")
-	if not os.path.exists(words_dir):
-		os.makedirs(words_dir)
-	for video_path in tqdm(os.listdir(video_dir)):
-		if not video_path.endswith(".mp4"):
-			continue
-		try:
-			prefix = video_path.split("/")[-1].split(".")[0]
-			word_path = os.path.join(words_dir, "{}.json".format(prefix))
-			if os.path.exists(word_path):
-				res = json.loads(open(word_path, "r").readline())
-			else:
-				res = video_processor.extract_frames_from_video(os.path.join(video_dir, video_path), frame_dir, extract_word=True, frame_interval=60)
-				with open(word_path, "w") as f:
-					f.write(json.dumps(res))
-			print (res)
+	# root_dir = "/Users/tal/work/lingtok_server/video_process/自制视频/视频加文字/抖音trending视频/视频2"
+	# video_dir = os.path.join(root_dir, "ori_videos")
+	# frame_dir = os.path.join(root_dir, "frames")
+	# if not os.path.exists(frame_dir):
+	# 	os.makedirs(frame_dir)
+	# audio_dir = os.path.join(root_dir, "audios")
+	# if not os.path.exists(audio_dir):
+	# 	os.makedirs(audio_dir)
+	# out_dir = os.path.join(root_dir, "outputs")
+	# if not os.path.exists(out_dir):
+	# 	os.makedirs(out_dir)
+	# words_dir = os.path.join(root_dir, "words")
+	# if not os.path.exists(words_dir):
+	# 	os.makedirs(words_dir)
+	# for video_path in tqdm(os.listdir(video_dir)):
+	# 	if not video_path.endswith(".mp4"):
+	# 		continue
+	# 	try:
+	# 		prefix = video_path.split("/")[-1].split(".")[0]
+	# 		word_path = os.path.join(words_dir, "{}.json".format(prefix))
+	# 		if os.path.exists(word_path):
+	# 			res = json.loads(open(word_path, "r").readline())
+	# 		else:
+	# 			res = video_processor.extract_frames_from_video(os.path.join(video_dir, video_path), frame_dir, extract_word=True, frame_interval=60)
+	# 			with open(word_path, "w") as f:
+	# 				f.write(json.dumps(res))
+	# 		print (res)
 			
-			word_count = {}
-			for item in res:
-				if item["timestamp"] < 2.0:
-					continue
-				word = item["word"]
-				if word not in word_count:
-					word_count[word] = 1
-				else:
-					word_count[word] += 1
+	# 		word_count = {}
+	# 		for item in res:
+	# 			if item["timestamp"] < 2.0:
+	# 				continue
+	# 			word = item["word"]
+	# 			if word not in word_count:
+	# 				word_count[word] = 1
+	# 			else:
+	# 				word_count[word] += 1
 			
-			max_count = -1
-			max_word = ""
-			for word, count in word_count.items():
-				if count > max_count:
-					max_count = count
-					max_word = word
+	# 		max_count = -1
+	# 		max_word = ""
+	# 		for word, count in word_count.items():
+	# 			if count > max_count:
+	# 				max_count = count
+	# 				max_word = word
 			
-			for item in res:
-				if item["timestamp"] == 0.0:
-					continue
-				if item["word"] == max_word:
-					start_time = item["timestamp"]
-					word = item["word"]
+	# 		for item in res:
+	# 			if item["timestamp"] == 0.0:
+	# 				continue
+	# 			if item["word"] == max_word:
+	# 				start_time = item["timestamp"]
+	# 				word = item["word"]
 					
-			video_clip = VideoFileClip(os.path.join(video_dir, video_path))
-			from huoshan_tts_util import generate_wav
-			# generate_wav("伞", "/Users/tal/work/lingtok_server/video_process/自制视频/视频加文字/伞_1.wav", voice_type="BV001_streaming", speed=0.3)
-			generate_wav(word, os.path.join(audio_dir, "{}.wav".format(word)), voice_type="BV001_streaming", speed=0.3)
+	# 		video_clip = VideoFileClip(os.path.join(video_dir, video_path))
+	# 		from huoshan_tts_util import generate_wav
+	# 		# generate_wav("伞", "/Users/tal/work/lingtok_server/video_process/自制视频/视频加文字/伞_1.wav", voice_type="BV001_streaming", speed=0.3)
+	# 		generate_wav(word, os.path.join(audio_dir, "{}.wav".format(word)), voice_type="BV001_streaming", speed=0.3)
 
-			repeat_num = 5
-			audio_list= [os.path.join(audio_dir, "{}.wav".format(word))] * repeat_num 
+	# 		repeat_num = 5
+	# 		audio_list= [os.path.join(audio_dir, "{}.wav".format(word))] * repeat_num 
 			
-			audio_dur_dict = merge_audios(audio_list, os.path.join(audio_dir, "{}_merged.wav".format(word)), sil_dur=500)
-			audio_dur = 0
-			for key in audio_dur_dict.keys():
-				audio_dur += audio_dur_dict[key]
+	# 		audio_dur_dict = merge_audios(audio_list, os.path.join(audio_dir, "{}_merged.wav".format(word)), sil_dur=500)
+	# 		audio_dur = 0
+	# 		for key in audio_dur_dict.keys():
+	# 			audio_dur += audio_dur_dict[key]
 			
-			audio_dur = audio_dur * repeat_num
+	# 		audio_dur = audio_dur * repeat_num
 			
-			video_clip = video_processor.add_audio_to_videoclip(video_clip, os.path.join(audio_dir, "{}_merged.wav".format(word)), start_time, audio_dur)
-			video_clip = video_processor.add_zhword_to_videoclip(video_clip, word, start_time, audio_dur)
-			video_clip = video_processor.add_process_bar_to_videoclip(video_clip, start_time, audio_dur)
-			video_clip.write_videofile(os.path.join(out_dir, "{}_modified.mp4".format(prefix)))
-		except Exception as e:
-			print (e)
-			continue
+	# 		video_clip = video_processor.add_audio_to_videoclip(video_clip, os.path.join(audio_dir, "{}_merged.wav".format(word)), start_time, audio_dur)
+	# 		video_clip = video_processor.add_zhword_to_videoclip(video_clip, word, start_time, audio_dur)
+	# 		video_clip = video_processor.add_process_bar_to_videoclip(video_clip, start_time, audio_dur)
+	# 		video_clip.write_videofile(os.path.join(out_dir, "{}_modified.mp4".format(prefix)))
+	# 	except Exception as e:
+	# 		print (e)
+	# 		continue
 
 	# adujust_videodir_volume("/Users/tal/work/lingtok_server/video_process/悟空识字1200/悟空识字1200", "/Users/tal/work/lingtok_server/video_process/悟空识字1200/悟空识字1200_音量")
 	# video_processor = VideoProcessor()

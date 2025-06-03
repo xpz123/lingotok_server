@@ -160,7 +160,7 @@ def callback(self_video_id, gen_word_finished=None, gen_word_result=None, gen_wo
     if gen_word_result is not None:
         req["gen_word_result"] = gen_word_result
     if gen_word_position is not None:
-        req["gen_word_start_time"] = gen_word_position
+        req["gen_word_position"] = gen_word_position
     if gen_video_finished is not None:
         req["gen_video_finished"] = gen_video_finished
     if gen_video_asset_id is not None:
@@ -205,18 +205,42 @@ def process_video_half(self_video_id, origin_video_path, gen_word_result, gen_wo
         audio_dur = audio_dur * repeat_num
         print ("audio generated success")
 
+
+
         # 重新压制视频
         out_video_path = os.path.join(root_dir, "output.mp4")
+        start_video_path = os.path.join(root_dir, "start_video.mp4")
+        end_video_path = os.path.join(root_dir, "end_video.mp4")
+        insert_video_path = os.path.join(root_dir, "insert_video.mp4")
+
         video_clip = VideoFileClip(origin_video_path)
-        video_clip = video_processor.add_audio_to_videoclip(video_clip, merged_audio_path, float(gen_word_start_time) / 1000.0, audio_dur)
-        video_clip = video_processor.add_zhword_to_videoclip(video_clip, gen_word_result["zh"], gen_word_start_time, audio_dur)
-        video_clip = video_processor.add_process_bar_to_videoclip(video_clip, gen_word_start_time, audio_dur)
-        video_clip.write_videofile(out_video_path, codec="libx264", audio_codec="aac")
+        # video_clip = video_processor.add_audio_to_videoclip(video_clip, merged_audio_path, float(gen_word_start_time) / 1000.0, audio_dur)
+        # video_clip = video_processor.add_zhword_to_videoclip(video_clip, gen_word_result["zh"], gen_word_start_time, audio_dur)
+        # video_clip = video_processor.add_process_bar_to_videoclip(video_clip, gen_word_start_time, audio_dur)
+        insert_clip = video_processor.add_audio_to_videoclip_v1(video_clip, merged_audio_path, float(gen_word_start_time) / 1000.0, audio_dur)
+        insert_clip = video_processor.add_zhword_to_videoclip(insert_clip, gen_word_result["zh"], 0, audio_dur)
+        insert_clip = video_processor.add_process_bar_to_videoclip(insert_clip, 0, audio_dur)
+        insert_clip.fps = video_clip.fps
+        insert_clip.write_videofile(insert_video_path, codec="libx264", audio_codec="aac")
+
+        import pdb; pdb.set_trace()
+
+        ffmpeg_path = "/opt/homebrew/Cellar/ffmpeg/7.1_4/bin/ffmpeg"
+        end_time_str = milliseconds_to_time_string(gen_word_start_time).replace(",", ".")
+        ffmpeg_cmd = "{} -ss 00:00:00 -i \"{}\" -to {} -c:v copy -c:a copy -y \"{}\"".format(ffmpeg_path, origin_video_path, end_time_str, start_video_path)
+        os.system(ffmpeg_cmd)
+
+        ffmpeg_cmd = "{} -ss {} -i \"{}\" -c:v copy -c:a copy -y \"{}\"".format(ffmpeg_path, end_time_str, origin_video_path, end_video_path)
+        os.system(ffmpeg_cmd)
+
+        ffmpeg_cmd = "{} -i {} -i {} -i {} -y -filter_complex \"[0:v:0][0:a:0][1:v:0][1:a:0][2:v:0][2:a:0]concat=n=3:v=1:a=1[outv][outa]\" -map \"[outv]\" -map \"[outa]\" -c:v libx264 -crf 23 -preset fast -c:a aac -b:a 128k \"{}\"".format(ffmpeg_path, start_video_path, insert_video_path, end_video_path, out_video_path)
+        os.system(ffmpeg_cmd)
+
         print ("video generated success")
 
         # 生成字幕
         srt_res = generate_subtitle(gen_word_result, self_video_id, root_dir, gen_word_start_time, audio_dur)
-        print ("subtitle generated success")
+        print ("subtitle generated success")    
 
         # 上传视频
         asset_id =upload_media(out_video_path, zh_srt_path=srt_res["zh_srt"], en_srt_path=srt_res["en_srt"], ar_srt_path=srt_res["ar_srt"], py_srt_path=srt_res["pinyin_srt"], title=self_video_id, description="")
@@ -227,7 +251,7 @@ def process_video_half(self_video_id, origin_video_path, gen_word_result, gen_wo
     return asset_id
                     
 
-def process_video_complete(self_video_id, origin_video):
+async def process_video_complete(self_video_id, origin_video):
     root_dir = "tmp/{}".format(self_video_id)
     os.makedirs(root_dir, exist_ok=True)
     frame_dir = os.path.join(root_dir, "frames")
