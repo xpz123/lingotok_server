@@ -110,19 +110,21 @@ def extract_word_from_llm_res(res):
         if item["timestamp"] < 0.2:
             continue
         if len(item["word"]) > 1:
-            word_candidates.append((item["timestamp"], item["word"]))
+            word_candidates.append((item["timestamp"], item["word"], item["frame_path"]))
         else:
-            char_candidates.append((item["timestamp"], item["word"]))
+            char_candidates.append((item["timestamp"], item["word"], item["frame_path"]))
     
     rd.shuffle(word_candidates)
     rd.shuffle(char_candidates)
     if len(word_candidates) > 0:
         start_time = word_candidates[0][0]
         word = word_candidates[0][1]
+        frame_path = word_candidates[0][2]
     else:
         start_time = char_candidates[0][0]
         word = char_candidates[0][1]
-    return start_time, word
+        frame_path = char_candidates[0][2]
+    return start_time, word, frame_path
 
 
 def generate_subtitle(gen_word_result, srt_prefix, srt_dir, start_time, end_time):
@@ -276,7 +278,7 @@ async def process_video_half_async(self_video_id, origin_video_path, gen_word_re
         return {"msg": "视频处理失败", "code": -1}
     
 
-def process_video_half(self_video_id, origin_video_path, gen_word_result, gen_word_start_time, origin_video_url=None):
+def process_video_half(self_video_id, origin_video_path, gen_word_result, gen_word_start_time, origin_video_url=None, frame_path=None):
     try:
         root_dir = "tmp/{}".format(self_video_id)
         log_path = os.path.join(root_dir, "log.txt")
@@ -311,7 +313,7 @@ def process_video_half(self_video_id, origin_video_path, gen_word_result, gen_wo
         # video_clip = video_processor.add_audio_to_videoclip(video_clip, merged_audio_path, float(gen_word_start_time) / 1000.0, audio_dur)
         # video_clip = video_processor.add_zhword_to_videoclip(video_clip, gen_word_result["zh"], gen_word_start_time, audio_dur)
         # video_clip = video_processor.add_process_bar_to_videoclip(video_clip, gen_word_start_time, audio_dur)
-        insert_clip = video_processor.add_audio_to_videoclip_v1(video_clip, merged_audio_path, float(gen_word_start_time) / 1000.0, audio_dur)
+        insert_clip = video_processor.add_audio_to_videoclip_v1(video_clip, merged_audio_path, float(gen_word_start_time) / 1000.0, audio_dur, frame_path=frame_path)
         insert_clip = video_processor.add_zhword_to_videoclip(insert_clip, gen_word_result["zh"], 0, audio_dur)
         insert_clip = video_processor.add_process_bar_to_videoclip(insert_clip, 0, audio_dur)
         insert_clip.fps = video_clip.fps
@@ -363,7 +365,7 @@ async def process_video_complete(self_video_id, origin_video):
                 return {"msg": "视频下载失败", "code": -1}
             try:
                 res = video_processor.extract_frames_from_video(ori_video_path, frame_dir, extract_word=True, frame_interval=15, end_time=4.0)
-                start_time, word = extract_word_from_llm_res(res)
+                start_time, word, frame_path = extract_word_from_llm_res(res)
                 start_time = int(start_time * 1000)
                 translated_word = translator.translate_zhword(word)
                 ar_word = translated_word["ar"]
@@ -379,7 +381,7 @@ async def process_video_complete(self_video_id, origin_video):
             try:
                 with open(log_path, "a") as f:
                     f.write("processing video half\n")
-                process_video_half(self_video_id, ori_video_path, gen_word_result, start_time)
+                process_video_half(self_video_id, ori_video_path, gen_word_result, start_time, frame_path)
             except Exception as e:
                 callback(self_video_id, gen_video_finished=False)
                 return {"msg": "视频处理失败", "code": -1}
