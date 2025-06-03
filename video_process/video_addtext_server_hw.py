@@ -20,6 +20,7 @@ from vod_hw_util import upload_media
 import sys
 from concurrent.futures import ThreadPoolExecutor
 import functools
+import json
 
 video_processor = VideoProcessor()
 translator = Translator()
@@ -163,7 +164,7 @@ def generate_subtitle(gen_word_result, srt_prefix, srt_dir, start_time, end_time
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(3))
-def callback(self_video_id, gen_word_finished=None, gen_word_result=None, gen_word_position=None,gen_video_finished=None, gen_video_asset_id=None):
+def callback(self_video_id, gen_word_finished=None, gen_word_result=None, gen_word_position=None,gen_video_finished=None, gen_video_asset_id=None, log_file=None):
     req = { "self_video_id": self_video_id}
     if gen_word_finished is not None:
         req["gen_word_finished"] = gen_word_finished
@@ -176,6 +177,9 @@ def callback(self_video_id, gen_word_finished=None, gen_word_result=None, gen_wo
     if gen_video_asset_id is not None:
         req["gen_video_asset_id"] = gen_video_asset_id
     timestamp = str(int(time.time()))
+    if log_file is not None:
+        with open(log_file, "a") as f:
+            f.write(json.dumps(req))
     ori_str = "{}{}{}".format("self_video_process_callback", timestamp, "lingotok")
     signature_256 = sha256_encrypt(ori_str)
     url = "https://api.lingotok.ai/api/v1/self_video/self_video_process_callback"
@@ -262,7 +266,7 @@ async def process_video_half_async(self_video_id, origin_video_path, gen_word_re
             asset_id =upload_media(out_video_path, zh_srt_path=srt_res["zh_srt"], en_srt_path=srt_res["en_srt"], ar_srt_path=srt_res["ar_srt"], py_srt_path=srt_res["pinyin_srt"], title=self_video_id, description="")
             with open(log_path, "a") as f:
                 f.write("upload media success\n asset_id: {}\n".format(asset_id))
-            callback(self_video_id, gen_video_finished=True, gen_video_asset_id=asset_id)
+            callback(self_video_id, gen_video_finished=True, gen_video_asset_id=asset_id, log_file=log_path)
             return {"msg": "视频处理成功", "code": 200}
 
         result = await run_in_threadpool(process_video)
@@ -339,10 +343,10 @@ def process_video_half(self_video_id, origin_video_path, gen_word_result, gen_wo
         # print ("upload media success")
         with open(log_path, "a") as f:
             f.write("upload media success\n asset_id: {}\n".format(asset_id))
-        callback(self_video_id, gen_video_finished=True, gen_video_asset_id=asset_id)
+        callback(self_video_id, gen_video_finished=True, gen_video_asset_id=asset_id, log_file=log_path)
         return {"msg": "视频处理成功", "code": 200}
     except Exception as e:
-        callback(self_video_id, gen_video_finished=False)
+        callback(self_video_id, gen_video_finished=False, log_file=log_path)
         return {"msg": "视频处理失败", "code": -1}
 
 async def process_video_complete(self_video_id, origin_video):
