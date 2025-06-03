@@ -18,11 +18,21 @@ from huoshan_tts_util import generate_wav
 from moviepy.editor import VideoFileClip
 from vod_hw_util import upload_media
 import sys
+from concurrent.futures import ThreadPoolExecutor
+import functools
 
 video_processor = VideoProcessor()
 translator = Translator()
 
 app = FastAPI()
+
+# 创建线程池执行器
+thread_pool = ThreadPoolExecutor(max_workers=3)  # 可以根据服务器性能调整worker数量
+task_status = {}
+
+async def run_in_threadpool(func, *args, **kwargs):
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(thread_pool, functools.partial(func, *args, **kwargs))
 
 def download_video(url, output_path=None, chunk_size=1024*1024):
     """
@@ -183,9 +193,88 @@ class VideoAddTextHalfRequest(BaseModel):
     gen_word_position: int
     
 
+async def process_video_half_async(self_video_id, origin_video_path, gen_word_result, gen_word_start_time, origin_video_url=None):
+    try:
+        # 将耗时操作包装在run_in_threadpool中
+        def process_video():
+            root_dir = "tmp/{}".format(self_video_id)
+            log_path = os.path.join(root_dir, "log.txt")
+            if origin_video_url is not None:
+                origin_video_path = os.path.join(root_dir, "ori_video.mp4")
+                if not download_video(origin_video_url, origin_video_path):
+                    callback(self_video_id, gen_video_finished=False)
+                    return {"msg": "视频下载失败", "code": -1}
+
+            # 生成音频
+            ori_audio_path = os.path.join(root_dir, "audio.wav")
+            merged_audio_path = os.path.join(root_dir, "merged_audio.wav")
+            generate_wav(gen_word_result["zh"], ori_audio_path)
+            repeat_num = 5
+            audio_list = [ori_audio_path] * repeat_num 
+            audio_dur_dict = merge_audios(audio_list, merged_audio_path, sil_dur=500)
+            audio_dur = 0
+            for key in audio_dur_dict.keys():
+                audio_dur += audio_dur_dict[key]
+            audio_dur = audio_dur * repeat_num
+            with open(log_path, "a") as f:
+                f.write("audio generated success\n")
+
+
+
+            # 重新压制视频
+            out_video_path = os.path.join(root_dir, "output.mp4")
+            start_video_path = os.path.join(root_dir, "start_video.mp4")
+            end_video_path = os.path.join(root_dir, "end_video.mp4")
+            insert_video_path = os.path.join(root_dir, "insert_video.mp4")
+
+            video_clip = VideoFileClip(origin_video_path)
+            # video_clip = video_processor.add_audio_to_videoclip(video_clip, merged_audio_path, float(gen_word_start_time) / 1000.0, audio_dur)
+            # video_clip = video_processor.add_zhword_to_videoclip(video_clip, gen_word_result["zh"], gen_word_start_time, audio_dur)
+            # video_clip = video_processor.add_process_bar_to_videoclip(video_clip, gen_word_start_time, audio_dur)
+            insert_clip = video_processor.add_audio_to_videoclip_v1(video_clip, merged_audio_path, float(gen_word_start_time) / 1000.0, audio_dur)
+            insert_clip = video_processor.add_zhword_to_videoclip(insert_clip, gen_word_result["zh"], 0, audio_dur)
+            insert_clip = video_processor.add_process_bar_to_videoclip(insert_clip, 0, audio_dur)
+            insert_clip.fps = video_clip.fps
+            insert_clip.write_videofile(insert_video_path, codec="libx264", audio_codec="aac")
+
+
+            ffmpeg_path = "/opt/homebrew/Cellar/ffmpeg/7.1_4/bin/ffmpeg"
+            end_time_str = milliseconds_to_time_string(gen_word_start_time).replace(",", ".")
+            ffmpeg_cmd = "{} -ss 00:00:00 -i \"{}\" -to {} -c:v copy -c:a copy -y \"{}\"".format(ffmpeg_path, origin_video_path, end_time_str, start_video_path)
+            os.system(ffmpeg_cmd)
+
+            ffmpeg_cmd = "{} -ss {} -i \"{}\" -c:v copy -c:a copy -y \"{}\"".format(ffmpeg_path, end_time_str, origin_video_path, end_video_path)
+            os.system(ffmpeg_cmd)
+
+            ffmpeg_cmd = "{} -i {} -i {} -i {} -y -filter_complex \"[0:v:0][0:a:0][1:v:0][1:a:0][2:v:0][2:a:0]concat=n=3:v=1:a=1[outv][outa]\" -map \"[outv]\" -map \"[outa]\" -c:v libx264 -crf 23 -preset fast -c:a aac -b:a 128k \"{}\"".format(ffmpeg_path, start_video_path, insert_video_path, end_video_path, out_video_path)
+            os.system(ffmpeg_cmd)
+
+            with open(log_path, "a") as f:
+                f.write("video generated success\n")
+
+            # 生成字幕
+            srt_res = generate_subtitle(gen_word_result, self_video_id, root_dir, gen_word_start_time, audio_dur)
+            with open(log_path, "a") as f:
+                f.write("subtitle generated success\n")    
+
+            # 上传视频
+            asset_id =upload_media(out_video_path, zh_srt_path=srt_res["zh_srt"], en_srt_path=srt_res["en_srt"], ar_srt_path=srt_res["ar_srt"], py_srt_path=srt_res["pinyin_srt"], title=self_video_id, description="")
+            with open(log_path, "a") as f:
+                f.write("upload media success\n asset_id: {}\n".format(asset_id))
+            callback(self_video_id, gen_video_finished=True, gen_video_asset_id=asset_id)
+            return {"msg": "视频处理成功", "code": 200}
+
+        result = await run_in_threadpool(process_video)
+        return result
+    except Exception as e:
+        callback(self_video_id, gen_video_finished=False)
+        return {"msg": "视频处理失败", "code": -1}
+    
+
 def process_video_half(self_video_id, origin_video_path, gen_word_result, gen_word_start_time, origin_video_url=None):
     try:
         root_dir = "tmp/{}".format(self_video_id)
+        log_path = os.path.join(root_dir, "log.txt")
         if origin_video_url is not None:
             origin_video_path = os.path.join(root_dir, "ori_video.mp4")
             if not download_video(origin_video_url, origin_video_path):
@@ -203,9 +292,9 @@ def process_video_half(self_video_id, origin_video_path, gen_word_result, gen_wo
         for key in audio_dur_dict.keys():
             audio_dur += audio_dur_dict[key]
         audio_dur = audio_dur * repeat_num
-        print ("audio generated success")
-
-
+        # print ("audio generated success")
+        with open(log_path, "a") as f:
+            f.write("audio generated success\n")
 
         # 重新压制视频
         out_video_path = os.path.join(root_dir, "output.mp4")
@@ -223,7 +312,6 @@ def process_video_half(self_video_id, origin_video_path, gen_word_result, gen_wo
         insert_clip.fps = video_clip.fps
         insert_clip.write_videofile(insert_video_path, codec="libx264", audio_codec="aac")
 
-        import pdb; pdb.set_trace()
 
         ffmpeg_path = "/opt/homebrew/Cellar/ffmpeg/7.1_4/bin/ffmpeg"
         end_time_str = milliseconds_to_time_string(gen_word_start_time).replace(",", ".")
@@ -236,59 +324,88 @@ def process_video_half(self_video_id, origin_video_path, gen_word_result, gen_wo
         ffmpeg_cmd = "{} -i {} -i {} -i {} -y -filter_complex \"[0:v:0][0:a:0][1:v:0][1:a:0][2:v:0][2:a:0]concat=n=3:v=1:a=1[outv][outa]\" -map \"[outv]\" -map \"[outa]\" -c:v libx264 -crf 23 -preset fast -c:a aac -b:a 128k \"{}\"".format(ffmpeg_path, start_video_path, insert_video_path, end_video_path, out_video_path)
         os.system(ffmpeg_cmd)
 
-        print ("video generated success")
+        # print ("video generated success")
+        with open(log_path, "a") as f:
+            f.write("video generated success\n")
 
         # 生成字幕
         srt_res = generate_subtitle(gen_word_result, self_video_id, root_dir, gen_word_start_time, audio_dur)
-        print ("subtitle generated success")    
+        # print ("subtitle generated success")    
 
         # 上传视频
         asset_id =upload_media(out_video_path, zh_srt_path=srt_res["zh_srt"], en_srt_path=srt_res["en_srt"], ar_srt_path=srt_res["ar_srt"], py_srt_path=srt_res["pinyin_srt"], title=self_video_id, description="")
-        print ("upload media success")
+        # print ("upload media success")
+        with open(log_path, "a") as f:
+            f.write("upload media success\n asset_id: {}\n".format(asset_id))
+        callback(self_video_id, gen_video_finished=True, gen_video_asset_id=asset_id)
+        return {"msg": "视频处理成功", "code": 200}
     except Exception as e:
         callback(self_video_id, gen_video_finished=False)
         return {"msg": "视频处理失败", "code": -1}
-    return asset_id
-                    
 
 async def process_video_complete(self_video_id, origin_video):
-    root_dir = "tmp/{}".format(self_video_id)
-    os.makedirs(root_dir, exist_ok=True)
-    frame_dir = os.path.join(root_dir, "frames")
-    os.makedirs(frame_dir, exist_ok=True)
-    ori_video_path = os.path.join(root_dir, "ori_video.mp4")
-    if not download_video(origin_video, ori_video_path):
-        callback(self_video_id, gen_word_finished=False)
-        return {"msg": "视频下载失败", "code": -1}
     try:
-        res = video_processor.extract_frames_from_video(ori_video_path, frame_dir, extract_word=True, frame_interval=15, end_time=4.0)
-        start_time, word = extract_word_from_llm_res(res)
-        start_time = int(start_time * 1000)
-        translated_word = translator.translate_zhword(word)
-        ar_word = translated_word["ar"]
-        en_word = translated_word["en"]
-        gen_word_result = {"zh": word, "pinyin": "", "ar": ar_word, "en": en_word}
-        callback(self_video_id, gen_word_finished=True, gen_word_result=gen_word_result, gen_word_position=start_time)
+        root_dir = "tmp/{}".format(self_video_id)
+        os.makedirs(root_dir, exist_ok=True)
+        frame_dir = os.path.join(root_dir, "frames")
+        os.makedirs(frame_dir, exist_ok=True)
+        ori_video_path = os.path.join(root_dir, "ori_video.mp4")
+        log_path = os.path.join(root_dir, "log.txt")
+        def process_video():
+            if not download_video(origin_video, ori_video_path):
+                callback(self_video_id, gen_word_finished=False)
+                return {"msg": "视频下载失败", "code": -1}
+            try:
+                res = video_processor.extract_frames_from_video(ori_video_path, frame_dir, extract_word=True, frame_interval=15, end_time=4.0)
+                start_time, word = extract_word_from_llm_res(res)
+                start_time = int(start_time * 1000)
+                translated_word = translator.translate_zhword(word)
+                ar_word = translated_word["ar"]
+                en_word = translated_word["en"]
+                gen_word_result = {"zh": word, "pinyin": "", "ar": ar_word, "en": en_word}
+                callback(self_video_id, gen_word_finished=True, gen_word_result=gen_word_result, gen_word_position=start_time)
+                with open(log_path, "a") as f:
+                    f.write("gen_word_result: {}\n".format(gen_word_result))
+                
+            except Exception as e:
+                callback(self_video_id, gen_word_finished=False)
+                return {"msg": "视频提取文字失败", "code": -1}
+            try:
+                with open(log_path, "a") as f:
+                    f.write("processing video half\n")
+                process_video_half(self_video_id, ori_video_path, gen_word_result, start_time)
+            except Exception as e:
+                callback(self_video_id, gen_video_finished=False)
+                return {"msg": "视频处理失败", "code": -1}
+            return {"msg": "视频处理成功", "code": 200}
+        
+        result = await run_in_threadpool(process_video)
+        return result
     except Exception as e:
         callback(self_video_id, gen_word_finished=False)
-        return {"msg": "视频提取文字失败", "code": -1}
-    
-    try:
-        asset_id = process_video_half(self_video_id, ori_video_path, gen_word_result, start_time)
-    except Exception as e:
-        callback(self_video_id, gen_video_finished=False)
         return {"msg": "视频处理失败", "code": -1}
-    
-    callback(self_video_id, gen_video_finished=True, gen_video_asset_id=asset_id)
-    return {"msg": "视频处理成功", "code": 200}
 
 
 @app.post('/trigger_self_video_process')
 async def trigger_self_video_process(input_data: VideoAddTextCompleteRequest):
     if not os.path.exists("tmp"):
         os.makedirs("tmp")
+    
+    # 创建异步任务
     task = asyncio.create_task(process_video_complete(input_data.self_video_id, input_data.origin_video))
+    
+    # 存储任务状态
     task_id = id(task)
+    task_status[task_id] = {
+        "self_video_id": input_data.self_video_id,
+        "status": "processing"
+    }
+    
+    # 添加任务完成回调
+    task.add_done_callback(
+        lambda t: task_status.update({id(t): {"status": "completed", "result": t.result()}})
+    )
+    
     return {"task_id": task_id, "self_video_id": input_data.self_video_id}
 
 
@@ -296,9 +413,37 @@ async def trigger_self_video_process(input_data: VideoAddTextCompleteRequest):
 async def trigger_self_video_process_half(input_data: VideoAddTextHalfRequest):
     if not os.path.exists("tmp"):
         os.makedirs("tmp")
-    task = asyncio.create_task(process_video_half(input_data.self_video_id, "", input_data.gen_word_result, input_data.gen_word_position, input_data.origin_video))
+    
+    # 创建异步任务
+    task = asyncio.create_task(process_video_half_async(
+        input_data.self_video_id,
+        "",
+        input_data.gen_word_result,
+        input_data.gen_word_position,
+        input_data.origin_video
+    ))
+    
+    # 存储任务状态
     task_id = id(task)
+    task_status[task_id] = {
+        "self_video_id": input_data.self_video_id,
+        "status": "processing"
+    }
+    
+    # 添加任务完成回调
+    task.add_done_callback(
+        lambda t: task_status.update({id(t): {"status": "completed", "result": t.result()}})
+    )
+    
     return {"task_id": task_id, "self_video_id": input_data.self_video_id}
+
+
+# 添加一个新的状态查询接口
+@app.get("/check_task_status/{task_id}")
+async def check_task_status(task_id: int):
+    if task_id not in task_status:
+        return {"error": "任务不存在"}
+    return task_status[task_id]
 
 
 if __name__ == "__main__":
