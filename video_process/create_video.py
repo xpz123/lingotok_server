@@ -81,6 +81,25 @@ def create_video_internal_new(asset_id, title, duration, quiz_list, sub_list, le
     # print (response.json()["video_id"])
     return response.json()
 
+@retry(stop=stop_after_attempt(3), wait=wait_fixed(3))
+def create_video_internal_0526(asset_id, title, quiz_list, customize=None, series_id=None, series_sequence=None):
+    req = {"asset_id": asset_id, "title": title, "quiz_list": quiz_list}
+
+    if customize is not None:
+        req["customize"] = customize
+    if series_id is not None:
+        req["series_id"] = series_id
+    if series_sequence is not None:
+        req["series_sequence"] = series_sequence
+    timestamp = str(int(time.time()))
+    ori_str = "{}{}{}".format("create_video_info", timestamp, "lingotok")
+    print (ori_str)
+    signature_256 = sha256_encrypt(ori_str)
+    url = "https://api.lingotok.ai/api/v1/video/create_video_info"
+    response = requests.post(url, json=req, headers={"Content-Type": "application/json", "Timestamp": timestamp, "Signature": signature_256})
+    # print (response.json()["video_id"])
+    return response.json()
+
 def convert_subtitles(zh_srt, en_srt, ar_srt, pinyin_srt):
     sub_zh = {"language": "zh", "obs_object": zh_srt.split("/")[-1]}
     sub_en = {"language": "en", "obs_object": en_srt.split("/")[-1]}
@@ -107,7 +126,7 @@ def convert_quiz(quiz):
     quiz_out = {"quiz_id": quiz["vid"], "quiz_type": "single_choice", "quiz_language_list": [quiz_zh, quiz_en, quiz_ar]}
     return quiz_out
 
-def create_with_csv(meta_file, csv_file, out_csv_file, customize=None, series_name=None):
+def create_with_csv(meta_file, csv_file, out_csv_file, customize=None, series_id=None, series_sequence=None):
     lines = open(meta_file).readlines()
     quizd = dict()
     for l in lines:
@@ -125,9 +144,12 @@ def create_with_csv(meta_file, csv_file, out_csv_file, customize=None, series_na
                 videoid_idx = idx
 
     df_list = df.values.tolist()
-    import pdb;pdb.set_trace()
 
     for i in tqdm(range(df.shape[0])):
+        if str(df.iloc[i]["asset_id"]) == "nan":
+            print ("{} asset_id is nan".format(df.iloc[i]["FileName"]))
+            df_list[i].append("nan")
+            continue
         if has_video_id:
             if df.iloc[i][videoid_idx] != "nan":
                 continue
@@ -142,20 +164,21 @@ def create_with_csv(meta_file, csv_file, out_csv_file, customize=None, series_na
         if not vid in quizd.keys():
             print ("{} not in quizd".format(vid))
             continue
-        zh_srt = df.iloc[i]["zh_srt"]
-        en_srt = df.iloc[i]["en_srt"]
-        ar_srt = df.iloc[i]["ar_srt"]
-        pinyin_srt = df.iloc[i]["pinyin_srt"]
-        subtitles = convert_subtitles(zh_srt, en_srt, ar_srt, pinyin_srt)
+        # zh_srt = df.iloc[i]["zh_srt"]
+        # en_srt = df.iloc[i]["en_srt"]
+        # ar_srt = df.iloc[i]["ar_srt"]
+        # pinyin_srt = df.iloc[i]["pinyin_srt"]
+        # subtitles = convert_subtitles(zh_srt, en_srt, ar_srt, pinyin_srt)
         
         quiz = convert_quiz(quizd[vid])
-        dur = int(df.iloc[i]["audio_dur"] * 1000)
-        level = df.iloc[i]["level"]
+        # dur = int(df.iloc[i]["audio_dur"] * 1000)
+        # level = df.iloc[i]["level"]
         asset_id = df.iloc[i]["asset_id"]
-        audio_ratio = df.iloc[i]["audio_ratio"]
+        # audio_ratio = df.iloc[i]["audio_ratio"]
         try:
             # resp = create_video_internal(asset_id, title, dur, [quiz], subtitles, level, audio_ratio, customize=customize)
-            resp = create_video_internal_new(asset_id, title, dur, [quiz], subtitles, level, audio_ratio, customize=customize, series_name=series_name)
+            # resp = create_video_internal_new(asset_id, title, dur, [quiz], subtitles, level, audio_ratio, customize=customize, series_name=series_name)
+            resp = create_video_internal_0526(asset_id, title, [quiz], customize=customize, series_id=series_id, series_sequence=series_sequence)
             if resp["code"] == 200 and resp["message"] == "success":
                 if has_video_id:
                     df_list[i][videoid_idx] = resp["data"]["video_info"]["video_id"]
@@ -199,12 +222,31 @@ def update_video_info(video_id, customize=None, series_name=None, level=None, ta
 
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(3))
 def delete_video_info_by_video_id(video_id):
-    req = {"video_id": video_id}
+    req = {"video_id": video_id, "status": "offline", "username": "LingotokAdmin"}
     timestamp = str(int(time.time()))
-    ori_str = "{}{}{}".format("delete_video_info", timestamp, "lingotok")
+    ori_str = "{}{}{}".format("update_video_info", timestamp, "lingotok")
     signature_256 = sha256_encrypt(ori_str)
-    url = "https://api.lingotok.ai/api/v1/video/delete_video_info"
+    # url = "https://api.lingotok.ai/api/v1/video/delete_video_info"
+    url = "https://api.lingotok.ai/api/v1/video/update_video_info"
     response = requests.post(url, json=req, headers={"Content-Type": "application/json", "Timestamp": timestamp, "Signature": signature_256})
+    return response.json()
+
+@retry(stop=stop_after_attempt(3), wait=wait_fixed(3))
+def update_video_info_by_video_id(video_id, asset_id=None, quiz_list=None, status=None):
+    req = {"video_id": video_id, "status": "offline", "username": "LingotokAdmin"}
+    if asset_id is not None:
+        req["asset_id"] = asset_id
+    if quiz_list is not None:
+        req["quiz_list"] = quiz_list
+    if status is not None:
+        req["status"] = status
+    timestamp = str(int(time.time()))
+    ori_str = "{}{}{}".format("update_video_info", timestamp, "lingotok")
+    signature_256 = sha256_encrypt(ori_str)
+    # url = "https://api.lingotok.ai/api/v1/video/delete_video_info"
+    url = "https://api.lingotok.ai/api/v1/video/update_video_info"
+    response = requests.post(url, json=req, headers={"Content-Type": "application/json", "Timestamp": timestamp, "Signature": signature_256})
+    print (response.json())
     return response.json()
 
 def delete_videos_info_by_series_name(series_name):
@@ -309,10 +351,40 @@ def resue_with_csv(create_csv, new_code):
         video_id = df.iloc[i]["video_id"]
         update_video_info(video_id, customize=new_code)
 
+@retry(stop=stop_after_attempt(3), wait=wait_fixed(3))
+def create_series(series_name, level, interest_list, cover=""):
+    req = { "name": series_name, "level": level, "interest_list": interest_list, "cover": cover}
+    print (req)
+    timestamp = str(int(time.time()))
+    ori_str = "{}{}{}".format("create_series", timestamp, "lingotok")
+    print (ori_str)
+    signature_256 = sha256_encrypt(ori_str)
+    url = "https://api.lingotok.ai/api/v1/video/create_series"
+    response = requests.post(url, json=req, headers={"Content-Type": "application/json", "Timestamp": timestamp, "Signature": signature_256})
+    # print (response.json()["video_id"])
+    return response.json()
+
 if __name__ == "__main__":
+    delete_videos_info_by_series_name("象形字")
+    # create_with_csv("/Users/tal/work/lingtok_server/video_process/自制视频/视频加文字/enxin0521/daily life/addtext_quiz_metainfo.jsonl", "/Users/tal/work/lingtok_server/video_process/自制视频/视频加文字/enxin0521/daily life/addtext_vod.csv", "/Users/tal/work/lingtok_server/video_process/自制视频/视频加文字/enxin0521/daily life/addtext_out.csv", series_id="68342b01b85b534eb22b7ad4")
+    # resp = create_series("enxin0521_beauty care_test", "easy", ["beauty_style"])
+    # print (resp)
+    # import pdb;pdb.set_trace()
+    # subdirs = ['music', 'gaming', 'motivation_advice', 'car', 'vlogs', 'food_drink', 'sport:sports', 'beauty_style', 'diy', 'technology', 'art', 'anime_comics', 'family', 'comedy', 'entertainment_culture', 'oddly_satisfy', 'outdoors', 'dance', 'finance', 'travel', 'fitness_health', "life_hack"]
+    # for subdir in subdirs:
+    #     series_name = "TT_0520_{}".format(subdir)
+    #     delete_videos_info_by_series_name(subdir)
     # pass
     # delete_videos_info_by_series_name("PNU_2")
-    yepzan_redis = redis.StrictRedis(host="101.46.56.32", port=6379, password="Lingotok123!")
+    # yepzan_redis = redis.StrictRedis(host="101.46.56.32", port=6379, password="Lingotok123!")
+    # videos = yepzan_redis.lrange("series_video-68297be2493ae9d4e77ed4ad", 0, -1)
+    # series = yepzan_redis.get("series-68297be2493ae9d4e77ed4ad")
+    # print (json.loads(series))
+   
+    # user_info = yepzan_redis.get("user-68322610fd46b021b7d1e52d")
+    # user_info = json.loads(user_info)
+    
+    # import pdb;pdb.set_trace()
     # raw_list = yepzan_redis.lrange("video_series_interest_level-宠物/动物_中等", 0, -1)
     # raw_list = [item.decode('utf-8') for item in raw_list]
     # print (raw_list)
@@ -326,9 +398,12 @@ if __name__ == "__main__":
     #     raw_list = [item.decode('utf-8') for item in raw_list]
     #     print (raw_list)
     
+    import pdb; pdb.set_trace()
+    
+    
     # print (json.loads(yepzan_redis.get("series-68297be2493ae9d4e77ed4ac")))
 
-    print (yepzan_redis.lrange("series_video-68297be2493ae9d4e77ed4ac", 0, 5))
+    # print (yepzan_redis.lrange("series_video-68297be2493ae9d4e77ed4ac", 0, 5))
     
     
     # update_video_info("681b952f670e05b9259ff6c0", series_name="2024版新教材拼音朗读视频全集")
@@ -378,6 +453,10 @@ if __name__ == "__main__":
     # clean_redis_with_baimingdan(baimingdan)
     # delete_videos_info_by_series_name("pnu1")
     # delete_videos_info_by_series_name("pnu2")
+    # delete_videos_info_by_series_name("悟空识字")
+
+
+    # ['TT_0520_art', 'TT_0520_oddly_satisfy', 'TT_0520_music', 'TT_0520_car', 'TT_0520_fitness_health' 'TT_0520_anime_comics',  'TT_0520_outdoors', 'TT_0520_dance', 'TT_0520_entertainment_culture', 'TT_0520_comedy', 'TT_0520_travel', 'TT_0520_technology',  'TT_0520_gaming', 'TT_0520_family', 'TT_0520_beauty_style', 'TT_0520_finance', 'TT_0520_vlogs', 'TT_0520_sport:sports', 'TT_0520_food_drink', 'TT_0520_diy', 'TT_0520_motivation_advice']
 
 
     # print (baimingdan)
