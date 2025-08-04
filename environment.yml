@@ -1,0 +1,13 @@
+name: lingotok
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+    - rocketmq-client-python
+    - aiofiles
+    - aiohttp
+    - python-dotenv
+    - requests 

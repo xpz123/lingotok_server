@@ -35,3 +35,6 @@ uvicorn==0.34.0
 fastapi==0.115.6
 ujson==5.10.0
 pypinyin==0.53.0
+rocketmq-client-python
+python-dotenv
+aiofiles

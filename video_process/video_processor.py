@@ -13,7 +13,7 @@ from tqdm import tqdm
 import jieba
 from zhon.hanzi import punctuation
 import string
-from llm_util import call_doubao_pro_128k, call_gpt4o, call_doubao_pro_32k, call_doubao_vl_1_5
+from llm_util import call_doubao_pro_128k, call_doubao_pro_32k, call_doubao_vl_1_5
 import random as rd
 import pandas as pd
 from pypinyin import pinyin

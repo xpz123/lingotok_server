@@ -1,0 +1,141 @@
+#0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from dockerfile
+#1 transferring dockerfile: 3.87kB done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/python:3.10-slim
+#2 DONE 1.2s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [1/9] FROM docker.io/library/python:3.10-slim@sha256:81f1cdb3770d54ecfdbddcc52c2125fce674c14a1d976dfd8f65dc0734f9c3c5
+#4 CACHED
+
+#5 [internal] load build context
+#5 transferring context: 13.14kB done
+#5 DONE 0.0s
+
+#6 [2/9] RUN apt-get update &&     echo "deb http://archive.debian.org/debian buster main" >> /etc/apt/sources.list &&     echo "Acquire::Check-Valid-Until "false";" > /etc/apt/apt.conf.d/99no-check-valid-until &&     apt-get update &&     apt-get install -y --no-install-recommends         wget         unzip         build-essential         ca-certificates         cmake         libssl-dev         libcurl4-openssl-dev         git         libboost1.65-dev         libboost-system1.65         libboost-thread1.65         libboost-log1.65         libboost-regex1.65         libboost-filesystem1.65         libboost-system1.65-dev         libboost-thread1.65-dev         libboost-log1.65-dev         libboost-regex1.65-dev         libboost-filesystem1.65-dev         libjsoncpp-dev         &&     if [ ! -f "/usr/include/boost/detail/endian.hpp" ]; then         echo "Error: Boost 1.65.1 安装失败，未找到 endian.hpp" && exit 1;     fi &&     if [ ! -f "/usr/include/boost/detail/endian.hpp" ]; then         mkdir -p /usr/include/boost/detail/ &&         if [ -f "/usr/include/boost/predef/detail/endian.hpp" ]; then             ln -s /usr/include/boost/predef/detail/endian.hpp /usr/include/boost/detail/endian.hpp;         else             touch /usr/include/boost/detail/endian.hpp;         fi;     fi &&     if [ ! -d "/usr/include/jsoncpp/json" ] || [ -z "$(ls -A /usr/include/jsoncpp/json)" ]; then         echo "Error: JSONCPP headers missing! libjsoncpp-dev installation failed." && exit 1;     fi &&     rm -rf /var/lib/apt/lists/*
+#6 0.803 Get:1 http://deb.debian.org/debian bookworm InRelease [151 kB]
+#6 1.029 Get:2 http://deb.debian.org/debian bookworm-updates InRelease [55.4 kB]
+#6 1.110 Get:3 http://deb.debian.org/debian-security bookworm-security InRelease [48.0 kB]
+#6 1.189 Get:4 http://deb.debian.org/debian bookworm/main amd64 Packages [8793 kB]
+#6 1.622 Get:5 http://deb.debian.org/debian bookworm-updates/main amd64 Packages [756 B]
+#6 1.693 Get:6 http://deb.debian.org/debian-security bookworm-security/main amd64 Packages [272 kB]
+#6 2.446 Fetched 9320 kB in 2s (4044 kB/s)
+#6 2.446 Reading package lists...
+#6 3.407 Hit:1 http://deb.debian.org/debian bookworm InRelease
+#6 3.467 Hit:2 http://deb.debian.org/debian bookworm-updates InRelease
+#6 3.531 Hit:3 http://deb.debian.org/debian-security bookworm-security InRelease
+#6 3.562 Get:4 http://archive.debian.org/debian buster InRelease [122 kB]
+#6 3.889 Get:5 http://archive.debian.org/debian buster/main amd64 Packages [7909 kB]
+#6 5.108 Fetched 8031 kB in 2s (3647 kB/s)
+#6 5.108 Reading package lists...
+#6 5.961 Reading package lists...
+#6 6.810 Building dependency tree...
+#6 6.996 Reading state information...
+#6 7.526 Package libboost-filesystem1.65-dev is not available, but is referred to by another package.
+#6 7.526 This may mean that the package is missing, has been obsoleted, or
+#6 7.526 is only available from another source
+#6 7.526 
+#6 7.526 Package libboost-log1.65-dev is not available, but is referred to by another package.
+#6 7.526 This may mean that the package is missing, has been obsoleted, or
+#6 7.526 is only available from another source
+#6 7.526 
+#6 7.526 Package libboost-regex1.65-dev is not available, but is referred to by another package.
+#6 7.526 This may mean that the package is missing, has been obsoleted, or
+#6 7.526 is only available from another source
+#6 7.526 
+#6 7.526 Package libboost-system1.65-dev is not available, but is referred to by another package.
+#6 7.526 This may mean that the package is missing, has been obsoleted, or
+#6 7.526 is only available from another source
+#6 7.526 
+#6 7.526 Package libboost-thread1.65-dev is not available, but is referred to by another package.
+#6 7.526 This may mean that the package is missing, has been obsoleted, or
+#6 7.526 is only available from another source
+#6 7.526 
+#6 7.526 Package libboost1.65-dev is not available, but is referred to by another package.
+#6 7.526 This may mean that the package is missing, has been obsoleted, or
+#6 7.526 is only available from another source
+#6 7.526 
+#6 7.531 E: Package 'libboost1.65-dev' has no installation candidate
+#6 7.531 E: Package 'libboost-system1.65-dev' has no installation candidate
+#6 7.531 E: Package 'libboost-thread1.65-dev' has no installation candidate
+#6 7.531 E: Package 'libboost-log1.65-dev' has no installation candidate
+#6 7.531 E: Package 'libboost-regex1.65-dev' has no installation candidate
+#6 7.531 E: Package 'libboost-filesystem1.65-dev' has no installation candidate
+#6 ERROR: process "/bin/sh -c apt-get update &&     echo \"deb http://archive.debian.org/debian buster main\" >> /etc/apt/sources.list &&     echo \"Acquire::Check-Valid-Until \\\"false\\\";\" > /etc/apt/apt.conf.d/99no-check-valid-until &&     apt-get update &&     apt-get install -y --no-install-recommends         wget         unzip         build-essential         ca-certificates         cmake         libssl-dev         libcurl4-openssl-dev         git         libboost1.65-dev         libboost-system1.65         libboost-thread1.65         libboost-log1.65         libboost-regex1.65         libboost-filesystem1.65         libboost-system1.65-dev         libboost-thread1.65-dev         libboost-log1.65-dev         libboost-regex1.65-dev         libboost-filesystem1.65-dev         libjsoncpp-dev         &&     if [ ! -f \"/usr/include/boost/detail/endian.hpp\" ]; then         echo \"Error: Boost 1.65.1 安装失败，未找到 endian.hpp\" && exit 1;     fi &&     if [ ! -f \"/usr/include/boost/detail/endian.hpp\" ]; then         mkdir -p /usr/include/boost/detail/ &&         if [ -f \"/usr/include/boost/predef/detail/endian.hpp\" ]; then             ln -s /usr/include/boost/predef/detail/endian.hpp /usr/include/boost/detail/endian.hpp;         else             touch /usr/include/boost/detail/endian.hpp;         fi;     fi &&     if [ ! -d \"/usr/include/jsoncpp/json\" ] || [ -z \"$(ls -A /usr/include/jsoncpp/json)\" ]; then         echo \"Error: JSONCPP headers missing! libjsoncpp-dev installation failed.\" && exit 1;     fi &&     rm -rf /var/lib/apt/lists/*" did not complete successfully: exit code: 100
+------
+ > [2/9] RUN apt-get update &&     echo "deb http://archive.debian.org/debian buster main" >> /etc/apt/sources.list &&     echo "Acquire::Check-Valid-Until "false";" > /etc/apt/apt.conf.d/99no-check-valid-until &&     apt-get update &&     apt-get install -y --no-install-recommends         wget         unzip         build-essential         ca-certificates         cmake         libssl-dev         libcurl4-openssl-dev         git         libboost1.65-dev         libboost-system1.65         libboost-thread1.65         libboost-log1.65         libboost-regex1.65         libboost-filesystem1.65         libboost-system1.65-dev         libboost-thread1.65-dev         libboost-log1.65-dev         libboost-regex1.65-dev         libboost-filesystem1.65-dev         libjsoncpp-dev         &&     if [ ! -f "/usr/include/boost/detail/endian.hpp" ]; then         echo "Error: Boost 1.65.1 安装失败，未找到 endian.hpp" && exit 1;     fi &&     if [ ! -f "/usr/include/boost/detail/endian.hpp" ]; then         mkdir -p /usr/include/boost/detail/ &&         if [ -f "/usr/include/boost/predef/detail/endian.hpp" ]; then             ln -s /usr/include/boost/predef/detail/endian.hpp /usr/include/boost/detail/endian.hpp;         else             touch /usr/include/boost/detail/endian.hpp;         fi;     fi &&     if [ ! -d "/usr/include/jsoncpp/json" ] || [ -z "$(ls -A /usr/include/jsoncpp/json)" ]; then         echo "Error: JSONCPP headers missing! libjsoncpp-dev installation failed." && exit 1;     fi &&     rm -rf /var/lib/apt/lists/*:
+7.526 Package libboost1.65-dev is not available, but is referred to by another package.
+7.526 This may mean that the package is missing, has been obsoleted, or
+7.526 is only available from another source
+7.526 
+7.531 E: Package 'libboost1.65-dev' has no installation candidate
+7.531 E: Package 'libboost-system1.65-dev' has no installation candidate
+7.531 E: Package 'libboost-thread1.65-dev' has no installation candidate
+7.531 E: Package 'libboost-log1.65-dev' has no installation candidate
+7.531 E: Package 'libboost-regex1.65-dev' has no installation candidate
+7.531 E: Package 'libboost-filesystem1.65-dev' has no installation candidate
+------
+
+ [33m1 warning found (use docker --debug to expand):
+[0m - UndefinedVar: Usage of undefined variable '$LD_LIBRARY_PATH' (line 76)
+dockerfile:4
+--------------------
+   3 |     # 安装系统依赖并强制验证 JSONCPP 安装
+   4 | >>> RUN apt-get update && \
+   5 | >>>     # 添加 Debian Buster 存档源（旧版本源已迁移至此）
+   6 | >>>     echo "deb http://archive.debian.org/debian buster main" >> /etc/apt/sources.list && \
+   7 | >>>     # 忽略源的有效性检查（旧版本源可能已过期）
+   8 | >>>     echo "Acquire::Check-Valid-Until \"false\";" > /etc/apt/apt.conf.d/99no-check-valid-until && \
+   9 | >>>     apt-get update && \
+  10 | >>>     apt-get install -y --no-install-recommends \
+  11 | >>>         wget \
+  12 | >>>         unzip \
+  13 | >>>         build-essential \
+  14 | >>>         ca-certificates \
+  15 | >>>         cmake \
+  16 | >>>         libssl-dev \
+  17 | >>>         libcurl4-openssl-dev \
+  18 | >>>         git \
+  19 | >>>         # 安装 Boost 1.65 核心库（不锁定版本）
+  20 | >>>         libboost1.65-dev \
+  21 | >>>         libboost-system1.65 \
+  22 | >>>         libboost-thread1.65 \
+  23 | >>>         libboost-log1.65 \
+  24 | >>>         libboost-regex1.65 \
+  25 | >>>         libboost-filesystem1.65 \
+  26 | >>>         # 安装开发文件（包含头文件）
+  27 | >>>         libboost-system1.65-dev \
+  28 | >>>         libboost-thread1.65-dev \
+  29 | >>>         libboost-log1.65-dev \
+  30 | >>>         libboost-regex1.65-dev \
+  31 | >>>         libboost-filesystem1.65-dev \
+  32 | >>>         libjsoncpp-dev \
+  33 | >>>         && \
+  34 | >>>     if [ ! -f "/usr/include/boost/detail/endian.hpp" ]; then \
+  35 | >>>         echo "Error: Boost 1.65.1 安装失败，未找到 endian.hpp" && exit 1; \
+  36 | >>>     fi && \
+  37 | >>>     # 关键：为 Boost 1.74+ 创建兼容的 endian.hpp 软链接
+  38 | >>>     # 新路径通常为 /usr/include/boost/predef/detail/endian.hpp 或已整合到其他文件
+  39 | >>>     if [ ! -f "/usr/include/boost/detail/endian.hpp" ]; then \
+  40 | >>>         mkdir -p /usr/include/boost/detail/ && \
+  41 | >>>         # 若新路径存在，直接链接；否则创建空文件避免编译错误
+  42 | >>>         if [ -f "/usr/include/boost/predef/detail/endian.hpp" ]; then \
+  43 | >>>             ln -s /usr/include/boost/predef/detail/endian.hpp /usr/include/boost/detail/endian.hpp; \
+  44 | >>>         else \
+  45 | >>>             touch /usr/include/boost/detail/endian.hpp; \
+  46 | >>>         fi; \
+  47 | >>>     fi && \
+  48 | >>>     # 验证 JSONCPP 核心文件是否完整（包括 config.h）
+  49 | >>>     if [ ! -d "/usr/include/jsoncpp/json" ] || [ -z "$(ls -A /usr/include/jsoncpp/json)" ]; then \
+  50 | >>>         echo "Error: JSONCPP headers missing! libjsoncpp-dev installation failed." && exit 1; \
+  51 | >>>     fi && \
+  52 | >>>     rm -rf /var/lib/apt/lists/*
+  53 |     
+--------------------
+ERROR: failed to build: failed to solve: process "/bin/sh -c apt-get update &&     echo \"deb http://archive.debian.org/debian buster main\" >> /etc/apt/sources.list &&     echo \"Acquire::Check-Valid-Until \\\"false\\\";\" > /etc/apt/apt.conf.d/99no-check-valid-until &&     apt-get update &&     apt-get install -y --no-install-recommends         wget         unzip         build-essential         ca-certificates         cmake         libssl-dev         libcurl4-openssl-dev         git         libboost1.65-dev         libboost-system1.65         libboost-thread1.65         libboost-log1.65         libboost-regex1.65         libboost-filesystem1.65         libboost-system1.65-dev         libboost-thread1.65-dev         libboost-log1.65-dev         libboost-regex1.65-dev         libboost-filesystem1.65-dev         libjsoncpp-dev         &&     if [ ! -f \"/usr/include/boost/detail/endian.hpp\" ]; then         echo \"Error: Boost 1.65.1 安装失败，未找到 endian.hpp\" && exit 1;     fi &&     if [ ! -f \"/usr/include/boost/detail/endian.hpp\" ]; then         mkdir -p /usr/include/boost/detail/ &&         if [ -f \"/usr/include/boost/predef/detail/endian.hpp\" ]; then             ln -s /usr/include/boost/predef/detail/endian.hpp /usr/include/boost/detail/endian.hpp;         else             touch /usr/include/boost/detail/endian.hpp;         fi;     fi &&     if [ ! -d \"/usr/include/jsoncpp/json\" ] || [ -z \"$(ls -A /usr/include/jsoncpp/json)\" ]; then         echo \"Error: JSONCPP headers missing! libjsoncpp-dev installation failed.\" && exit 1;     fi &&     rm -rf /var/lib/apt/lists/*" did not complete successfully: exit code: 100
