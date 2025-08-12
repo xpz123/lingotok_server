@@ -21,6 +21,22 @@ access_token = "ICPlIxh2QEPMh1otaFjg0AqemFkuyv3a"
 #         print('total cost time = {time}'.format(time=time.time() - begin_time))
 #     return wrapper
 
+from videocaptioner import split_sentences
+import re
+
+def refine_srt_with_videocaptioner(srt_content):
+    """
+    对标准SRT内容的字幕文本部分用VideoCaptioner断句优化，保留编号和时间轴。
+    """
+    pattern = re.compile(r'(\d+)\n([\d:,]+ --> [\d:,]+)\n(.+?)(?=\n\n|\Z)', re.DOTALL)
+    new_blocks = []
+    for match in pattern.finditer(srt_content):
+        idx, timecode, text = match.groups()
+        text = text.strip().replace('\n', ' ')
+        refined_text = "\n".join(split_sentences(text))
+        new_block = f"{idx}\n{timecode}\n{refined_text}"
+        new_blocks.append(new_block)
+    return "\n\n".join(new_blocks)
 
 def call_huoshan_srt(file_url, language="en-US", words_per_line=55):
     response = requests.post(
