@@ -1,0 +1,11 @@
+rocketmq-client-python
+aiofiles
+aiohttp
+python-dotenv
+requests
+pysrt
+volcengine
+tqdm
+pandas
+pypinyin
+tenacity

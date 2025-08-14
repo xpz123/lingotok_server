@@ -1,0 +1,73 @@
+FROM ubuntu:20.04
+
+# 设置环境变量避免交互式安装
+ENV DEBIAN_FRONTEND=noninteractive
+
+# 安装系统依赖
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        python3 \
+        python3-pip \
+        python3-dev \
+        wget \
+        ca-certificates \
+        rpm \
+        rpm2cpio \
+        git \
+        libgl1-mesa-glx \
+        libglib2.0-0 \
+        libsm6 \
+        libxext6 \
+        libxrender1 \
+        && rm -rf /var/lib/apt/lists/*
+
+# 设置工作目录
+WORKDIR /app
+
+# 下载并安装 RocketMQ C++ 客户端
+RUN wget -q https://github.com/apache/rocketmq-client-cpp/releases/download/2.2.0/rocketmq-client-cpp-2.2.0-bin-release.tar.gz && \
+    tar -xzf rocketmq-client-cpp-2.2.0-bin-release.tar.gz && \
+    cd rocketmq-client-cpp-2.2.0-bin-release/centos7 && \
+    tar -xzf rocketmq-client-cpp-2.2.0-bin-release.tar.gz && \
+    find . -name "*.so" -exec cp {} /usr/local/lib/ \; && \
+    find . -name "*.h" -exec cp {} /usr/local/include/ \; && \
+    cd /app && \
+    rm -rf rocketmq-client-cpp-2.2.0-bin-release* && \
+    ldconfig
+
+# 安装 Python 依赖
+COPY all_requirements.txt .
+RUN pip3 install --no-cache-dir --upgrade pip
+
+# 安装核心依赖
+RUN pip3 install --no-cache-dir rocketmq-client-python==0.5.0rc6
+
+# 安装基础依赖
+RUN pip3 install --no-cache-dir python-dotenv aiofiles tenacity aiohttp
+
+# 安装 volcengine
+RUN pip3 install --no-cache-dir git+https://github.com/volcengine/volcengine-python-sdk.git
+
+# 安装 fastapi 相关依赖
+RUN pip3 install --no-cache-dir pydantic starlette anyio distro httpx jiter sniffio
+
+# 安装音频处理依赖
+RUN pip3 install --no-cache-dir audioread joblib lazy_loader msgpack numba pooch scikit-learn scipy soxr
+
+# 安装视频处理依赖
+RUN pip3 install --no-cache-dir imageio imageio_ffmpeg proglog moviepy==1.0.3
+
+# 安装其他依赖
+RUN pip3 install --no-cache-dir pyasn1 defusedxml pymongo PyYAML requests-toolbelt simplejson
+
+# 安装所有其他包
+RUN pip3 install --no-cache-dir beautifulsoup4 blinker certifi cffi charset-normalizer click cryptography decorator Flask google idna itsdangerous Jinja2 MarkupSafe numpy pandas protobuf py pycparser pycryptodome python-dateutil pytz requests retry six soupsieve tqdm tzdata urllib3 volcengine Werkzeug redis gunicorn uvicorn fastapi ujson pypinyin arabic_reshaper hanlp huaweicloudsdkcore huaweicloudsdkvod jieba librosa openai opencv_python openpyxl Pillow pydub pysrt retrying soundfile zhon --no-deps
+
+# 设置环境变量
+ENV LD_LIBRARY_PATH=/usr/local/lib
+ENV PYTHONPATH=/app
+
+# 复制代码
+COPY . .
+
+CMD ["python3", "video_process/video_task_handler_async.py"] 

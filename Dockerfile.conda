@@ -1,0 +1,14 @@
+FROM continuumio/miniconda3
+
+WORKDIR /app
+
+# 创建 conda 环境
+COPY environment.yml .
+RUN conda env create -f environment.yml && \
+    conda clean -afy
+
+# 激活环境
+SHELL ["conda", "run", "-n", "lingotok", "/bin/bash", "-c"]
+
+# 不复制代码，用挂载
+CMD ["conda", "run", "-n", "lingotok", "python", "video_process/video_task_handler_async.py"] 

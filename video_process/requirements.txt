@@ -21,3 +21,6 @@ soundfile==0.12.1
 tqdm==4.66.5
 volcengine==1.0.160
 zhon==2.1.1
+rocketmq-client-python
+python-dotenv
+aiofiles

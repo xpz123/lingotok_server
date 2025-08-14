@@ -1,0 +1,239 @@
+import os
+import aiofiles
+import json
+import asyncio
+from rocketmq.client import PushConsumer, Message
+from call_huoshan_srt import call_huoshan_srt
+from translator import Translator
+from video_processor import VideoProcessor
+from vod_hw_util import upload_media
+from call_huoshan_srt import refine_srt_with_videocaptioner
+from concurrent.futures import ThreadPoolExecutor 
+from dotenv import load_dotenv
+import aiohttp
+from enum import Enum
+
+# 枚举定义直接移到这里
+class UploadVideoProcessType(str, Enum):
+    PRE_PROCESS = "pre_process"
+    PROCESS_SUBTITLE = "process_subtitle"
+    PROCESS_QUIZ = "process_quiz"
+
+load_dotenv()  # 自动加载 .env 文件
+
+# 环境切换：根据 RUN_ENV 加载不同的 .env 文件
+run_env = os.getenv("RUN_ENV", "local")  # 默认local
+env_file = {
+    "local": ".env.local",
+    "test": ".env.test",
+    "prod": ".env.prod"
+}.get(run_env, ".env.local")
+load_dotenv(env_file)
+
+# 1. 结构化环境变量加载和配置
+MQ_NAMESRV_ADDR = os.getenv("MQ_NAMESRV_ADDR")
+MQ_TOPIC = os.getenv("MQ_TOPIC")
+MQ_CONSUMER_GROUP = os.getenv("MQ_CONSUMER_GROUP")
+
+# 2. 枚举类型已直接定义在文件顶部
+
+# 3. 日志完善
+import logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
+
+
+executor = ThreadPoolExecutor(max_workers=4)
+loop = asyncio.get_event_loop()
+
+async def handle_extract_zh(data):
+    """
+    处理PRE_PROCESS事件：生成中文字幕、优化断句、上传到云
+    """
+    file_url = data['file_url']
+    video_id = data['video_id']
+    srt_dir = data['srt_dir']
+    language = data.get('language', 'zh-CN')
+    video_path = data['video_path']
+
+    loop = asyncio.get_event_loop()
+    executor = data.get('executor')
+
+    # 1. 生成中文字幕
+    result = await loop.run_in_executor(
+        executor, call_huoshan_srt, file_url, language, 15
+    )
+    srt_path = os.path.join(srt_dir, f"{video_id}_Chinese.srt")
+    srt_content = ""
+    async with aiofiles.open(srt_path, "w", encoding="utf-8") as fw:
+        for idx, seg in enumerate(result.get('result', [])):
+            line = f"{idx+1}\n{seg['start']} --> {seg['end']}\n{seg['text']}\n\n"
+            await fw.write(line)
+            srt_content += line
+
+    # 2. refine_srt_with_videocaptioner 优化断句
+    srt_refined_path = srt_path.replace('.srt', '_refined.srt')
+    refined_srt = refine_srt_with_videocaptioner(srt_content)
+    async with aiofiles.open(srt_refined_path, "w", encoding="utf-8") as f:
+        await f.write(refined_srt)
+
+    # 3. 上传到华为云
+    asset_id = upload_media(video_path, zh_srt_path=srt_refined_path, title=video_id)
+    logging.info(f"上传完成，asset_id: {asset_id}")
+    return {"asset_id": asset_id, "zh_srt_path": srt_refined_path}
+
+async def handle_post_zh_tasks(data):
+    """
+    处理PROCESS_SUBTITLE/PROCESS_QUIZ事件：生成多语字幕、Quiz、上传到云
+    """
+    zh_srt_path = data['zh_srt_path']
+    video_path = data['video_path']
+    video_id = data['video_id']
+    srt_dir = data['srt_dir']
+
+    loop = asyncio.get_event_loop()
+    executor = data.get('executor')  # 可选：传递线程池
+
+    # 1. 英文翻译
+    en_srt_path = os.path.join(srt_dir, f"{video_id}_English.srt")
+    await loop.run_in_executor(
+        executor, Translator().translate_zhsrt2ensrt_with_context, zh_srt_path, en_srt_path
+    )
+
+    # 2. 阿语翻译
+    ar_srt_path = os.path.join(srt_dir, f"{video_id}_Arabic.srt")
+    await loop.run_in_executor(
+        executor, Translator().translate_zhsrt2arsrt_huoshan, zh_srt_path, ar_srt_path
+    )
+
+    # 3. 拼音生成
+    pinyin_srt_path = os.path.join(srt_dir, f"{video_id}_Pinyin.srt")
+    await loop.run_in_executor(
+        executor, VideoProcessor().convert_zhsrt_to_pinyinsrt, zh_srt_path, pinyin_srt_path
+    )
+
+    # 4. Quiz生成
+    quiz = await loop.run_in_executor(
+        executor, VideoProcessor().generate_quiz_zh_tiankong_v2, zh_srt_path
+    )
+    quiz_path = os.path.join(srt_dir, f"{video_id}_quiz.json")
+    async with aiofiles.open(quiz_path, "w", encoding="utf-8") as f:
+        await f.write(json.dumps(quiz, ensure_ascii=False))
+
+    # 5. 上传到华为云
+    asset_id = upload_media(
+        video_path,
+        zh_srt_path=zh_srt_path,
+        en_srt_path=en_srt_path,
+        ar_srt_path=ar_srt_path,
+        py_srt_path=pinyin_srt_path,
+        title=video_id
+    )
+    logging.info(f"上传完成，asset_id: {asset_id}")
+    return {
+        "asset_id": asset_id,
+        "en_srt_path": en_srt_path,
+        "ar_srt_path": ar_srt_path,
+        "pinyin_srt_path": pinyin_srt_path,
+        "quiz_path": quiz_path
+    }
+
+async def post_callback(callback_url, payload):
+    """
+    异步POST回调
+    """
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.post(callback_url, json=payload, timeout=10) as resp:
+                text = await resp.text()
+                logging.info(f"回调推送成功: {callback_url}, 状态: {resp.status}, 响应: {text}")
+        except Exception as e:
+            logging.error(f"回调推送失败: {callback_url}, 错误: {e}")
+
+TYPE_HANDLER_MAP = {
+    "extract_zh": handle_extract_zh,
+    "post_zh_tasks": handle_post_zh_tasks,
+}
+
+def on_message(msg_ptr, context_ptr):
+    tag = msg.get_tags()
+    try:
+        data = json.loads(msg.body.decode('utf-8'))
+    except Exception as e:
+        logging.error(f"消息体解析失败: {e}, body: {msg.body}")
+        return False  # 消费失败，RocketMQ 会重试
+    logging.info(f"收到消息，tag: {tag}, data: {data}")
+
+    loop = asyncio.get_event_loop()
+    callback_url = data.get("callback_url")  # 新增：支持回调URL
+    try:
+        # 只用两个 handler，根据 tag 分发
+        if tag == UploadVideoProcessType.PRE_PROCESS:
+            future = asyncio.run_coroutine_threadsafe(handle_extract_zh(data), loop)
+        elif tag in (UploadVideoProcessType.PROCESS_SUBTITLE, UploadVideoProcessType.PROCESS_QUIZ):
+            future = asyncio.run_coroutine_threadsafe(handle_post_zh_tasks(data), loop)
+        else:
+            logging.warning(f"未知tag: {tag}")
+            return True
+        result = future.result(timeout=600)
+        logging.info(f"{tag} 任务完成: {result}")
+
+        if callback_url:
+            payload = {
+                "status": "success",
+                "tag": tag,
+                "result": result,
+                "video_id": data.get("video_id"),
+            }
+            # 异步推送，不阻塞主流程
+            asyncio.run_coroutine_threadsafe(post_callback(callback_url, payload), loop)
+        
+        return True  # 消费成功
+    except Exception as e:
+        logging.error(f"{tag} 任务异常，将重试: {e}")
+        if callback_url:
+            payload = {
+                "status": "fail",
+                "tag": tag,
+                "error": str(e),
+                "video_id": data.get("video_id"),
+            }
+            asyncio.run_coroutine_threadsafe(post_callback(callback_url, payload), loop)
+        return False  # 消费失败，RocketMQ 会重试
+
+def start_rmq_consumer():
+    # 1. 从环境变量读取配置
+    consumer_group = MQ_CONSUMER_GROUP or 'default_consumer_group'
+    namesrv_addr = MQ_NAMESRV_ADDR or '127.0.0.1:9876'
+    # 支持多个 namesrv_addr
+    if ',' in namesrv_addr:
+        namesrv_addr_list = [addr.strip() for addr in namesrv_addr.split(',')]
+        namesrv_addr = ';'.join(namesrv_addr_list)
+    # 2. 创建 Consumer
+    consumer = PushConsumer(consumer_group)
+    try:
+        consumer.set_name_server_address(namesrv_addr)
+    except AttributeError:
+        # 兼容旧版本
+        consumer.set_namesrv_addr(namesrv_addr)
+    # 3. 设置实例名称（重要！）
+    import socket
+    instance_name = f"{consumer_group}_{socket.gethostname()}_{os.getpid()}"
+    consumer.set_instance_name(instance_name)
+    # 4. 预留鉴权（如有）
+    # ak = os.getenv('MQ_AK')
+    # sk = os.getenv('MQ_SK')
+    # if ak and sk:
+    #     consumer.set_session_credentials(ak, sk, '')
+    # 5. 订阅 topic + tag
+    tags = "pre_process||process_subtitle||process_quiz"
+    consumer.subscribe(MQ_TOPIC, tags)
+    # 6. 注册消息监听器
+    consumer._register_callback(on_message)
+    # 5. 启动 Consumer
+    consumer.start()
+    logging.info(f"RocketMQ consumer started and listening on group: {consumer_group}, namesrv: {namesrv_addr}, topic: {MQ_TOPIC}, tags: {tags}")
+
+if __name__ == "__main__":
+    #loop = asyncio.get_event_loop()
+    start_rmq_consumer()
+    #loop.run_forever()
