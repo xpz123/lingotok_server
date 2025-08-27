@@ -1,6 +1,8 @@
 import os
 print("RUNNING:", os.path.abspath(__file__), flush=True)
 
+import subprocess
+import math
 import json
 import time
 import asyncio
@@ -92,111 +94,115 @@ class UploadVideoProcessType(str, Enum):
 # ---------- 业务处理 ----------
 async def handle_extract_zh(data: dict):
     """
-    PRE_PROCESS：生成中文字幕 -> 优化断句 -> （若本地无文件则）下载本地副本 -> 上传
-    需要：file_url, video_id, srt_dir, video_path
+    PRE_PROCESS：针对中文语音的视频生成中文字幕（URL 直连版，不抽 WAV）：
+    1) 确保本地视频（用于后续上传）
+    2) 直接调用 ASR（URL），language 默认 zh-CN/可改 auto
+    3) 使用上游返回的 segments/srt 写 SRT（不要再重解析 raw）
+    4) 上传视频，返回 asset_id 与 zh_srt_path
+    需要：file_url, video_id, srt_dir, video_path, (language)
     """
-    file_url   = data["file_url"]
+    file_url   = data.get("file_url", "")
     video_id   = data["video_id"]
     srt_dir    = data["srt_dir"]
-    language   = data.get("language", "zh-CN")
+    language   = data.get("language", "zh-CN") 
     video_path = data["video_path"]
 
+    if not file_url:
+        raise ValueError("缺少 file_url（URL 模式必须提供 file_url）")
+
     os.makedirs(srt_dir, exist_ok=True)
+    logging.info("ASR (URL) input file_url=%s language=%s video_path=%s", file_url, language, video_path)
 
-    # 1) 生成中文字幕
-    try:
-        result = await MAIN_LOOP.run_in_executor(EXECUTOR, call_huoshan_srt, file_url, language, 15)
-    except AssertionError as ae:
-        raise RuntimeError(f"调用火山识别失败（可能是下载 404/鉴权失败/格式问题）。original={ae}") from ae
-    except Exception as e:
-        raise RuntimeError(f"调用火山识别异常：{e}") from e
-
-    # --- A) 更稳的 segments 提取 ---
-    segments = None
-    for key_path in [
-        ("result",),
-        ("data", "result"),
-        ("data", "segments"),
-        ("segments",),
-        ("subtitles",),
-    ]:
-        cur = result
-        try:
-            for k in key_path:
-                cur = cur[k]
-            if isinstance(cur, list):
-                segments = cur
-                break
-        except Exception:
-            pass
-    if segments is None:
-        segments = result.get("result", []) if isinstance(result, dict) else []
-
-    logging.info("火山识别返回 %d 段字幕", len(segments))
-    if segments:
-        logging.info("字幕预览（前5条）：")
-        for seg in segments[:5]:
-            logging.info("%s --> %s %s",
-                        seg.get("start") or seg.get("begin") or seg.get("start_time"),
-                        seg.get("end")   or seg.get("finish") or seg.get("end_time"),
-                        seg.get("text")  or seg.get("content") or "")
-    else:
-        logging.warning("⚠ 火山返回字幕为空（继续落地占位内容，避免空文件）")
-
-    # --- B) 写出原始 SRT（为空时写占位，避免空文件） ---
-    srt_path = os.path.join(srt_dir, f"{video_id}_Chinese.srt")
-    srt_content = ""
-
-    async with aiofiles.open(srt_path, "w", encoding="utf-8") as fw:
-        if segments:
-            for idx, seg in enumerate(segments):
-                start = seg.get("start") or seg.get("from") or seg.get("begin") or seg.get("start_time") or "00:00:00,000"
-                end   = seg.get("end")   or seg.get("to")   or seg.get("finish") or seg.get("end_time")   or "00:00:00,500"
-                text  = seg.get("text")  or seg.get("content") or ""
-                line = f"{idx+1}\n{start} --> {end}\n{text}\n\n"
-                await fw.write(line)
-                srt_content += line
-        else:
-            # 占位
-            placeholder = "1\n00:00:00,000 --> 00:00:01,000\n（未识别到有效内容）\n\n"
-            await fw.write(placeholder)
-            srt_content = placeholder
-
-    # --- C) 精修：若为空或异常，自动回退到原始 ---
-    srt_refined_path = srt_path.replace(".srt", "_refined.srt")
-    try:
-        refined_srt = refine_srt_with_videocaptioner(srt_content) or ""
-        if not refined_srt.strip():
-            logging.warning("refine_srt 返回空，回退为原始 SRT")
-            refined_srt = srt_content
-    except Exception as e:
-        logging.exception("refine_srt 异常，回退为原始 SRT：%s", e)
-        refined_srt = srt_content
-
-    async with aiofiles.open(srt_refined_path, "w", encoding="utf-8") as f:
-        await f.write(refined_srt)
-
-    # --- D) 写完打点 ---
-    try:
-        orig_sz = os.path.getsize(srt_path)
-        refi_sz = os.path.getsize(srt_refined_path)
-        logging.info("原始 SRT 写入完成: %s (bytes=%s)", srt_path, orig_sz)
-        logging.info("精修 SRT 写入完成: %s (bytes=%s)", srt_refined_path, refi_sz)
-    except Exception:
-        pass
-
-    # 3) 确保本地有视频文件（如果没有就从 file_url 下载）
+    # 1) 确保本地视频（后续要上传用）
     if not os.path.exists(video_path):
         logging.info("本地视频不存在，开始下载: %s -> %s", file_url, video_path)
         await download_to_path(file_url, video_path)
     else:
         logging.info("本地视频已存在: %s", video_path)
 
-    # 4) 上传（按 upload_media 实现，通常需要本地文件路径）
+    # 2) 直接调用 ASR（URL）
+    try:
+        timeout_sec = 180
+        result = await MAIN_LOOP.run_in_executor(
+            EXECUTOR,
+            lambda: call_huoshan_srt(
+                file_url=file_url,
+                language=language,
+                words_per_line=15,
+                max_lines=1,
+                timeout=timeout_sec,
+                debug=True,  
+            )
+        )
+
+        raw_for_save = result.get("raw", {})
+        segments = result.get("segments", [])
+        srt_text = result.get("srt", "")
+
+        # 落盘原始响应（仅用于排障）
+        raw_path = os.path.join(srt_dir, f"{video_id}_huoshan_raw.json")
+        try:
+            with open(raw_path, "w", encoding="utf-8") as fw:
+                json.dump(raw_for_save, fw, ensure_ascii=False, indent=2)
+            logging.info("保存 ASR 原始响应: %s", raw_path)
+        except Exception:
+            pass
+
+    except AssertionError as ae:
+        raise RuntimeError(f"调用火山识别失败（可能是下载/鉴权/格式问题）：{ae}") from ae
+    except Exception as e:
+        raise RuntimeError(f"调用火山识别异常：{e}") from e
+
+    # 3) 直接使用上游返回的 segments/srt（不再对 raw 进行重解析）
+    logging.info("火山识别解析出 %d 段字幕", len(segments))
+    if segments[:2]:
+        logging.info("segments 预览前2条: %s", segments[:2])
+
+    srt_path = os.path.join(srt_dir, f"{video_id}_Chinese.srt")
+    srt_content = srt_text.strip()
+    if not srt_content:
+        # 保险：若上游没给 srt（几乎不会发生），由 segments 拼接 SRT
+        idx = 0
+        lines = []
+        for seg in segments:
+            st, ed, txt = _seg_fields(seg)
+            if not txt:
+                continue
+            idx += 1
+            lines += [f"{idx}", f"{st} --> {ed}", f"{txt}", ""]
+        if not lines:
+            lines = ["1", "00:00:00,000 --> 00:00:01,000", "（未识别到有效内容）", ""]
+        srt_content = "\n".join(lines)
+
+    async with aiofiles.open(srt_path, "w", encoding="utf-8") as fw:
+        await fw.write(srt_content)
+
+    # 精修（失败回退原始）
+    srt_refined_path = srt_path.replace(".srt", "_refined.srt")
+    try:
+        refined_srt = refine_srt_with_videocaptioner(srt_content) or ""
+        if not refined_srt.strip():
+            logging.warning("refine_srt 返回空，回退原始 SRT")
+            refined_srt = srt_content
+    except Exception as e:
+        logging.exception("refine_srt 异常，回退原始 SRT：%s", e)
+        refined_srt = srt_content
+
+    async with aiofiles.open(srt_refined_path, "w", encoding="utf-8") as f:
+        await f.write(refined_srt)
+
+    try:
+        logging.info("原始 SRT 写入完成: %s (bytes=%s)", srt_path, os.path.getsize(srt_path))
+        logging.info("精修 SRT 写入完成: %s (bytes=%s)", srt_refined_path, os.path.getsize(srt_refined_path))
+    except Exception:
+        pass
+
+    # 4) 上传视频（保留原逻辑）
     asset_id = await MAIN_LOOP.run_in_executor(EXECUTOR, upload_media, video_path)
     logging.info(f"上传完成，asset_id: {asset_id}")
 
     return {"asset_id": asset_id, "zh_srt_path": srt_refined_path}
+
 
 async def handle_post_zh_tasks(data: dict):
     """
@@ -488,6 +494,100 @@ def start_rmq_consumer():
                  MQ_CONSUMER_GROUP, MQ_NAMESRV_ADDR, MQ_TOPIC, tag_expr,
                  "subscribe-callback" if used_new_callback else "_register_callback")
     return consumer
+
+
+
+def _run(cmd):
+    """运行外部命令，返回 (code, stdout, stderr)"""
+    p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    return p.returncode, p.stdout.strip(), p.stderr.strip()
+
+def _fmt_ms_to_srt(ms):
+    """把毫秒/秒/已是SRT字符串的输入统一成 00:00:00,000"""
+    if ms is None:
+        return "00:00:00,000"
+    try:
+        v = float(ms)
+    except Exception:
+        s = str(ms).strip()
+        if ":" in s and "," in s:  # 已是 SRT
+            return s
+        return "00:00:00,000"
+    total_ms = int(round(v if v > 1000 else v * 1000.0))
+    hh = total_ms // 3600000
+    mm = (total_ms % 3600000) // 60000
+    ss = (total_ms % 60000) // 1000
+    mmm = total_ms % 1000
+    return f"{hh:02d}:{mm:02d}:{ss:02d},{mmm:03d}"
+
+def _pick_segments(res: dict) -> list:
+    """多路径兜底，兼容不同返回结构"""
+    if not isinstance(res, dict):
+        return []
+    candidates = [
+        ("segments",),                
+        ("result",),
+        ("data", "segments"),
+        ("data", "result", "segments"),
+        ("sentence_list",),
+        ("results",),
+    ]
+    for path in candidates:
+        cur = res
+        ok = True
+        for k in path:
+            if isinstance(cur, dict) and k in cur:
+                cur = cur[k]
+            else:
+                ok = False
+                break
+        if ok and isinstance(cur, list) and cur:
+            return cur
+    return []
+
+def _seg_fields(seg: dict):
+    """兼容常见字段名，输出 (srt_start, srt_end, text)"""
+    start = seg.get("start") or seg.get("from") or seg.get("begin") or seg.get("start_time") or seg.get("start_time_ms")
+    end   = seg.get("end")   or seg.get("to")   or seg.get("finish") or seg.get("end_time")   or seg.get("end_time_ms")
+    text  = seg.get("text")  or seg.get("content") or seg.get("sentence") or seg.get("asr_text") or ""
+    return _fmt_ms_to_srt(start), _fmt_ms_to_srt(end), str(text).strip()
+
+async def _extract_audio_16k_clean(video_path: str, wav_out: str):
+    """
+    抽取并净化音频：16k 单声道 + 高通/低通 + 降噪 + 响度规范化 + 压缩 + 噪声门
+    若 ffmpeg 不支持某滤镜，会自动降级。
+    """
+    _ensure_parent_dir(wav_out)
+    # 先探测是否有 arnndn / afftdn
+    code, out, err = _run(["ffmpeg", "-hide_banner", "-filters"])
+    filters = (out + "\n" + err).lower()
+    has_arnndn = "arnndn" in filters
+    has_afftdn = "afftdn" in filters
+
+    denoise = "arnndn=m=nrnnn/model.rnnn" if has_arnndn else ("afftdn=nf=-25" if has_afftdn else None)
+    af_chain = ["highpass=f=100", "lowpass=f=3800"]
+    if denoise:
+        af_chain.append(denoise)
+    af_chain += [
+        "loudnorm=I=-20:LRA=11:TP=-1.5",
+        "acompressor=threshold=-18dB:ratio=3:attack=10:release=100",
+        "agate=threshold=-35dB:ratio=2"
+    ]
+    af = ",".join(af_chain)
+
+    cmd = [
+        "ffmpeg", "-y", "-hide_banner",
+        "-i", video_path,
+        "-vn", "-ac", "1", "-ar", "16000",
+        "-af", af,
+        "-c:a", "pcm_s16le", wav_out
+    ]
+    logging.info("FFmpeg 抽音频并净化: %s", " ".join(cmd))
+    code, out, err = _run(cmd)
+    if code != 0 or not os.path.exists(wav_out):
+        raise RuntimeError(f"音频抽取失败：{err[-500:]}")
+
+
 
 # ---------- 退出 ----------
 def _install_signal_handlers(consumer):

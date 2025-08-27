@@ -16,7 +16,7 @@ def main():
     producer.start()
 
     payload = {
-        "file_url": "https://media.w3.org/2010/05/sintel/trailer_hd.mp4",
+        "file_url": "https://yepzan.tos-cn-beijing.volces.com/%E5%AF%B9%E8%AF%9D-%E7%9C%9F%E4%BA%BA%E7%89%88.mp4",
         "callback_url": "http://127.0.0.1:18080/callback", 
         "language": "zh-CN",
         "video_id": "demo_001",
